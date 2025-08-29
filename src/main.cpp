@@ -4,6 +4,22 @@
 #include <Eigen/Dense>
 #include <nlopt.h>
 
+#ifdef USE_OPENMP
+#include <omp.h>
+#endif
+
+namespace math_utils {
+    // Implementación de CDF normal usando erf()
+    inline double normal_cdf(double x, double mean = 0.0, double std = 1.0) {
+        return 0.5 * (1.0 + std::erf((x - mean) / (std * std::sqrt(2.0))));
+    }
+    
+    // Implementación de log CDF normal
+    inline double normal_logcdf(double x, double mean = 0.0, double std = 1.0) {
+        return std::log(normal_cdf(x, mean, std));
+    }
+}
+
 // Función objetivo: minimizar f(x,y) = (x-2)^2 + (y-1)^2
 double objective_function(unsigned n, const double *x, double *grad, void *data) {
     // Si se solicita el gradiente, calcularlo
@@ -15,7 +31,6 @@ double objective_function(unsigned n, const double *x, double *grad, void *data)
     // Calcular valor de la función
     double fx = std::pow(x[0] - 2.0, 2) + std::pow(x[1] - 1.0, 2);
     
-    // Mostrar progreso
     std::cout << "  f(" << x[0] << ", " << x[1] << ") = " << fx << std::endl;
     
     return fx;
@@ -31,12 +46,8 @@ double constraint_function(unsigned n, const double *x, double *grad, void *data
 }
 
 int main() {
-    std::cout << "========================================" << std::endl;
-    std::cout << "    PRUEBA DE EIGEN Y NLOPT 2.10.0     " << std::endl;
-    std::cout << "========================================" << std::endl;
     
-    // === PRUEBA DE EIGEN ===
-    std::cout << "\n=== Prueba de Eigen ===" << std::endl;
+    std::cout << "Prueba de Eigen" << std::endl;
     
     Eigen::Matrix2d mat;
     mat << 1, 2,
@@ -50,9 +61,14 @@ int main() {
     std::cout << "Resultado A*b:\n" << result << std::endl;
     std::cout << "Eigen funciona correctamente!" << std::endl;
     
-    // === PRUEBA DE NLOPT ===
-    std::cout << "\n=== Prueba de NLopt 2.10.0 ===" << std::endl;
-    
+    // Test OpenMP
+    #ifdef USE_OPENMP
+        std::cout << "\n OpenMP:" << std::endl;
+        std::cout << "Disponible, threads: " << omp_get_max_threads() << std::endl;
+    #endif
+
+    std::cout << "\nPrueba de NLopt" << std::endl;
+
     try {
         // Crear optimizador
         nlopt_opt opt = nlopt_create(NLOPT_LD_LBFGS, 2);  // L-BFGS con 2 variables
@@ -133,16 +149,20 @@ int main() {
         // Limpiar memoria
         nlopt_destroy(opt);
         
-        std::cout << "\nNLopt 2.10.0 funciona correctamente!" << std::endl;
+        std::cout << "\nNLopt funciona correctamente!" << std::endl;
         
     } catch (...) {
         std::cout << "Error inesperado en NLopt" << std::endl;
         return 1;
     }
-    
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "   TODAS LAS PRUEBAS COMPLETADAS!   " << std::endl;
-    std::cout << "========================================" << std::endl;
-    
+
+    // Test distribución normal
+    std::cout << "\n3. Test Distribución Normal:" << std::endl;
+    double test_val = 0.0;
+    std::cout << "   CDF(0) = " << math_utils::normal_cdf(test_val) << " (esperado: ~0.5)" << std::endl;
+    std::cout << "   logCDF(0) = " << math_utils::normal_logcdf(test_val) << " (esperado: ~-0.693)" << std::endl;
+
+
+    std::cout << "\nTodas las librerias funcionan correctamente" << std::endl;
     return 0;
 }
