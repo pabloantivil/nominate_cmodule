@@ -20,18 +20,27 @@ pkg_check_modules(NLOPT REQUIRED nlopt)
 
 # Incluir directorios
 include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/include)  # nlohmann/json.hpp aquí
+include_directories(${CMAKE_SOURCE_DIR}/Eigen)    # Eigen headers
 include_directories(${NLOPT_INCLUDE_DIRS})
 
-# Buscar archivos fuente
-file(GLOB CXX_SOURCES "src/*.cpp")
+# Verificar que json.hpp existe
+if(EXISTS "${CMAKE_SOURCE_DIR}/include/json.hpp")
+    message(STATUS "nlohmann/json encontrado en include/json.hpp")
+else()
+    message(WARNING "nlohmann/json NO encontrado. Descarga json.hpp a include/")
+endif()
 
-# Crear ejecutable
-add_executable(nominate_cmodule ${CXX_SOURCES})
+# EJECUTABLE PRINCIPAL: nominate_cmodule (programa DW-NOMINATE)
+add_executable(nominate_cmodule src/nominate.cpp)
 
 # Enlazar librerías con NLopt de MSYS2
 target_link_libraries(nominate_cmodule ${NLOPT_LIBRARIES})
 target_link_directories(nominate_cmodule PRIVATE ${NLOPT_LIBRARY_DIRS})
+
+# EJECUTABLE DE PRUEBA: test_json (verificación de nlohmann/json)
+add_executable(test_json src/test_json.cpp)
+# test_json no necesita NLopt ni OpenMP, solo los headers
 
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
