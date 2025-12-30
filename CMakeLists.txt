@@ -55,3 +55,17 @@ message(STATUS "NLopt encontrado:")
 message(STATUS "Include dirs: ${NLOPT_INCLUDE_DIRS}")
 message(STATUS "Library dirs: ${NLOPT_LIBRARY_DIRS}")
 message(STATUS "Libraries: ${NLOPT_LIBRARIES}")
+
+# Añadir soporte OpenBLAS
+find_package(BLAS)
+if(BLAS_FOUND)
+    message(STATUS "BLAS encontrado: ${BLAS_LIBRARIES}")
+    target_link_libraries(nominate_cmodule ${BLAS_LIBRARIES})
+    target_compile_definitions(nominate_cmodule PRIVATE EIGEN_USE_BLAS)
+endif()
+
+# Flags de optimización agresiva
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(nominate_cmodule PRIVATE 
+        -O3 -march=native -ffast-math -DNDEBUG)
+endif()
