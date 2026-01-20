@@ -42,6 +42,14 @@ target_link_directories(nominate_cmodule PRIVATE ${NLOPT_LIBRARY_DIRS})
 add_executable(test_json src/test_json.cpp)
 # test_json no necesita NLopt ni OpenMP, solo los headers
 
+# EJECUTABLE DE VALIDACIÓN: test_normal_cdf (verificación de normal_cdf.cpp)
+add_executable(test_normal_cdf 
+    tests/test_normal_cdf.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_normal_cdf PRIVATE cxx_std_17)
+
+
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
     target_link_libraries(nominate_cmodule OpenMP::OpenMP_CXX)
