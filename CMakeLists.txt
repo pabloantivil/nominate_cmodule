@@ -59,6 +59,14 @@ add_executable(test_likelihood
 )
 target_compile_features(test_likelihood PRIVATE cxx_std_17)
 
+# ==============================================================
+# Test de sort_utils
+# ==============================================================
+add_executable(test_sort_utils
+    tests/test_sort_utils.cpp
+)
+target_compile_features(test_sort_utils PRIVATE cxx_std_17)
+
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
     target_link_libraries(nominate_cmodule OpenMP::OpenMP_CXX)
