@@ -15,12 +15,6 @@
  *
  * La tabla cubre el rango [-5.0, 5.0] con una resolución de 0.0001 (10,000 puntos por unidad).
  *
- * Equivalente en Fortran: init_zdf() en el módulo zdf_mod (líneas 39-63)
- * Tabla Fortran: ZDF(150000, 4) con columnas:
- *   Columna 1: valor z
- *   Columna 2: CDF(z)
- *   Columna 3: log(CDF(z))
- *   Columna 4: pdf(z) / CDF(z)
  */
 class NormalCDF
 {
@@ -28,7 +22,6 @@ public:
     /**
      * @brief Constructor que precalcula la tabla de búsqueda CDF.
      *
-     * Equivalente a llamar init_zdf() una vez en Fortran.
      */
     NormalCDF();
 
@@ -110,7 +103,6 @@ private:
     static constexpr size_t TABLE_ROWS = 150000; // Total de filas en la tabla ZDF (dimensión Fortran)
 
     // Estructura de la tabla: equivalente a ZDF(150000, 4) en Fortran
-    // C++ usa almacenamiento en filas principales: table_[row * 4 + column]
     std::vector<double> table_; // Arreglo 2D aplanado
     size_t tableSize_;          // Filas realmente usadas: 2*NDEVIT - 1 = 100001
     double resolution_;         // XDEVIT

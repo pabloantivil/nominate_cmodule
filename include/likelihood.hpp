@@ -7,11 +7,11 @@
 #include <cmath>
 
 /**
- * @brief Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE.
+ * @brief Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
  */
 
 /**
- * @brief Estructura para almacenar parametros de una votacion (roll call).
+ * @brief Estructura para almacenar parametros de una votacion (roll call)
  */
 struct RollCallParameters
 {
@@ -28,13 +28,13 @@ struct RollCallParameters
 /**
  * @brief Matriz de votos con manejo de missing data.
  *
- * Equivalente a RCVOTE1 (voto observado) y RCVOTE9 (missing data mask) en Fortran.
+ * Equivalente a RCVOTE1 (voto observado) y RCVOTE9 (missing data mask) en Fortran
  */
 class VoteMatrix
 {
 public:
     /**
-     * @brief Constructor con dimensiones.
+     * @brief Constructor con dimensiones
      * @param numLegislators Numero de legisladores
      * @param numRollCalls Numero de votaciones
      */

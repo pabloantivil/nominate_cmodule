@@ -104,7 +104,6 @@ static double computeUtility(
 {
     double utility = 0.0;
 
-    // Fortran: DC = DC + (-WEIGHT(K)*WEIGHT(K)*DYES(K))
     for (int k = 0; k < squaredDistances.size(); ++k)
     {
         double wk = weights(k);
@@ -158,10 +157,6 @@ LikelihoodResult computeLogLikelihood(
     // Extrae beta (ultimo peso)
     const double beta = weights(numDimensions); // WEIGHT(NS+1)
 
-    // Fortran: DO 1 II=NFIRST,NLAST (periodos)
-    //          DO 2 I=1,NPC (legisladores)
-    //          DO 33 J=1,NQC (votaciones)
-
     for (size_t i = 0; i < numLegislators; ++i)
     {
         double legislatorLogLikelihood = 0.0;
@@ -172,7 +167,6 @@ LikelihoodResult computeLogLikelihood(
 
         for (size_t j = 0; j < numRollCalls; ++j)
         {
-            // Fortran: IF(RCBAD(J+KTOTQ).EQV..TRUE.)THEN
             if (!validRollCalls[j])
             {
                 continue; // Skip votaciones invalidas (<2.5% en minoria)
@@ -185,8 +179,6 @@ LikelihoodResult computeLogLikelihood(
             }
 
             // Calcula distancias cuadradas
-            // Fortran: DYES(K) = (XDATA(i,k) - ZMID(j,k) + DYN(j,k))^2
-            //          DNO(K)  = (XDATA(i,k) - ZMID(j,k) - DYN(j,k))^2
             Eigen::VectorXd distYes = computeSquaredDistances(
                 coord,
                 rollCallParams[j].midpoint,

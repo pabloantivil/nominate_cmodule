@@ -20,7 +20,6 @@ void NormalCDF::initializeTable()
     std::vector<double> yy(NDEVIT);
     std::vector<double> cumnml(NDEVIT);
 
-    // FORTRAN LOOP 501: Compute positive side CDF values
 
     for (size_t i = 0; i < NDEVIT; ++i)
     {
@@ -32,11 +31,8 @@ void NormalCDF::initializeTable()
         cumnml[i] = xx;
     }
 
-    // TWOPI = 1/sqrt(2*pi) for pdf calculation
-    // TWOPI=1.0/SQRT(2.0*3.1415926536)
     const double twopi = 1.0 / std::sqrt(2.0 * PI);
 
-    // FORTRAN LOOP 901: Llenar el lado negativo de la tabla
     for (size_t i = 0; i < NDEVIT; ++i)
     {
         size_t fortranIndex = NDEVIT - 1 - i; // Mapea a Fortran NDEVIT+1-I con base 0
@@ -54,10 +50,6 @@ void NormalCDF::initializeTable()
     // FORTRAN LOOP 902: Llenar el lado positivo de la tabla
     for (size_t i = 1; i < NDEVIT; ++i)
     { // Comienza en 1, no en 0 (Fortran comienza en 2)
-        // Fortran: I=2 a NDEVIT
-        // C++: i=1 a NDEVIT-1
-        // Fila Fortran: I-1+NDEVIT (cuando I=2 da NDEVIT+1)
-        // Fila C++: i-1+NDEVIT (cuando i=1 da NDEVIT)
 
         size_t rowIndex = i - 1 + NDEVIT;
 
@@ -94,21 +86,6 @@ double NormalCDF::interpolate(double z, int column) const
     {
         return table_[(tableSize_ - 1) * 4 + column];
     }
-
-    // Encontrar el índice para la interpolación
-    // La tabla abarca desde valores negativos hasta positivos
-    // Para z=0, deberíamos estar en el índice NDEVIT (50001 en Fortran, 50000 en C++)
-
-    // En Fortran:
-    // - Índices 1 a NDEVIT contienen valores negativos (de más negativo a cercano a cero)
-    // - Índices NDEVIT a 2*NDEVIT-1 contienen valores positivos (de cercano a cero a más positivo)
-    //
-    // En C++ (base-0):
-    // - Índices 0 a NDEVIT-1 contienen valores negativos
-    // - Índices NDEVIT-1 a tableSize_-1 contienen valores positivos
-
-    // La búsqueda binaria sería más robusta, pero podemos usar la estructura conocida
-    // La tabla está uniformemente espaciada después de la configuración inicial
 
     // Encontrar posición en la tabla mediante búsqueda lineal (simple y robusta)
     size_t lowerIndex = 0;
