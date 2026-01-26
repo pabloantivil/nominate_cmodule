@@ -1,18 +1,30 @@
 /**
  * @brief Implementacion de optimizadores por busqueda grid para DW-NOMINATE.
+ *
+ * Optimizadores de Parametros
+ * - SIGMAS() -> optimizeBeta()
+ * - WINT() -> optimizeWeight2()
+ *
+ * Este archivo traduce las subrutinas SIGMAS() y WINT() del codigo Fortran
+ * original.
+ *
+ * Diferencias:
+ * - SIGMAS: optimiza WEIGHT(NS+1) con paso 0.1
+ * - WINT: optimiza WEIGHT(2) con paso 0.01
  */
 
 #include "grid_optimizer.hpp"
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+#include <stdexcept>
 
 // ============================================================================
 // Funcion auxiliar: evalua log-likelihood con el estado actual
 // ============================================================================
 
 /**
- * @brief Evalua log-likelihood usando computeLogLikelihood().
+ * @brief Evalua log-likelihood usando computeLogLikelihood()
  *
  * Equivalente a: CALL PLOG(XPLOG, NFIRST, NLAST)
  *
@@ -21,10 +33,8 @@
  */
 static double evaluateLogLikelihood(const LikelihoodContext &ctx)
 {
-    // Numero de dimensiones = weights.size() - 1 (ultimo es beta)
     const int numDimensions = static_cast<int>(ctx.weights.size()) - 1;
 
-    // Verifica que las coordenadas tengan el numero correcto de dimensiones
     if (ctx.legislatorCoords.cols() != numDimensions)
     {
         throw std::invalid_argument(
@@ -43,46 +53,44 @@ static double evaluateLogLikelihood(const LikelihoodContext &ctx)
 }
 
 // ============================================================================
-// Implementacion de optimizeBeta()
+// Implementacion de optimizeParameter() 
 // ============================================================================
 
-BetaOptimizationResult optimizeBeta(
+ParameterOptimizationResult optimizeParameter(
     LikelihoodContext &context,
-    const BetaOptimizerConfig &config)
+    int paramIndex,
+    const GridOptimizerConfig &config)
 {
     /**
-     * SUBROUTINE SIGMAS
+     * Algoritmo comun a SIGMAS() y WINT() del Fortran.
      *
-     * Estructura del algoritmo Fortran:
-     * 1. NINC=15, XINC=0.1  (parametros hardcoded)
-     * 2. Evalua LL en beta_actual -> SAVECURR
-     * 3. Evalua LL en beta+XINC -> SAVEUP
-     * 4. Evalua LL en beta-XINC -> SAVEDWN
-     * 5. Si SAVEUP > SAVECURR: busqueda ascendente
-     * 6. Si SAVEDWN > SAVECURR: busqueda descendente
-     * 7. En cada iteracion:
+     * Estructura:
+     * 1. Evalua LL en param_actual -> SAVECURR
+     * 2. Evalua LL en param+XINC -> SAVEUP
+     * 3. Evalua LL en param-XINC -> SAVEDWN
+     * 4. Si SAVEUP > SAVECURR: busqueda ascendente
+     * 5. Si SAVEDWN > SAVECURR: busqueda descendente
+     * 6. En cada iteracion:
      *    - Si LL mejora: acepta y continua
      *    - Si LL empeora: rechaza y XINC = XINC/2
      */
 
-    BetaOptimizationResult result;
+    // Validar indice
+    if (paramIndex < 0 || paramIndex >= static_cast<int>(context.weights.size()))
+    {
+        throw std::out_of_range("paramIndex fuera de rango en optimizeParameter");
+    }
 
-    // Indice de beta en el vector de pesos: ultima posicion
-    // Fortran: WEIGHT(NS+1) donde NS = numero de dimensiones
-    const int betaIndex = static_cast<int>(context.weights.size()) - 1;
-
-    // Guardar estado inicial
-    result.initialBeta = context.weights(betaIndex);
+    ParameterOptimizationResult result;
+    result.initialValue = context.weights(paramIndex);
     result.iterations = 0;
+    result.converged = false;
+    result.direction = 0;
 
-    // Paso de busqueda (mutable durante la optimizacion)
-    // Fortran: XINC = 0.1
     double xinc = config.initialStep;
 
     // ========================================================================
     // Bloque 1: Evaluar punto actual
-    //   CALL PLOG(XPLOG, NFIRST, NLAST)
-    //   SAVECURR = XPLOG
     // ========================================================================
 
     double saveCurr = evaluateLogLikelihood(context);
@@ -91,111 +99,84 @@ BetaOptimizationResult optimizeBeta(
 
     if (config.verbose)
     {
-        std::cout << "[optimizeBeta] Inicial: beta=" << result.initialBeta
-                  << ", LL=" << std::fixed << std::setprecision(3) << saveCurr
+        std::cout << "[optimizeParameter] Inicial: param[" << paramIndex << "]="
+                  << result.initialValue
+                  << ", LL=" << std::fixed << std::setprecision(4) << saveCurr
                   << std::endl;
     }
 
     // ========================================================================
     // Bloque 2: Sondeo hacia arriba (+XINC)
-    //   WEIGHT(NS+1) = WEIGHT(NS+1) + XINC
-    //   CALL PLOG(XPLOG, NFIRST, NLAST)
-    //   SAVEUP = XPLOG
-    //   WEIGHT(NS+1) = WEIGHT(NS+1) - XINC
     // ========================================================================
 
-    context.weights(betaIndex) += xinc;
+    context.weights(paramIndex) += xinc;
     double saveUp = evaluateLogLikelihood(context);
     result.iterations++;
-    context.weights(betaIndex) -= xinc; // Restaurar
+    context.weights(paramIndex) -= xinc; // Restaurar
 
     // ========================================================================
     // Bloque 3: Sondeo hacia abajo (-XINC)
-    //   WEIGHT(NS+1) = WEIGHT(NS+1) - XINC
-    //   CALL PLOG(XPLOG, NFIRST, NLAST)
-    //   SAVEDWN = XPLOG
-    //   WEIGHT(NS+1) = WEIGHT(NS+1) + XINC
     // ========================================================================
 
-    context.weights(betaIndex) -= xinc;
+    context.weights(paramIndex) -= xinc;
     double saveDwn = evaluateLogLikelihood(context);
     result.iterations++;
-    context.weights(betaIndex) += xinc; // Restaurar
+    context.weights(paramIndex) += xinc; // Restaurar
 
     if (config.verbose)
     {
-        std::cout << "[optimizeBeta] Sondeo: LL_up=" << saveUp
+        std::cout << "[optimizeParameter] Sondeo: LL_up=" << saveUp
                   << ", LL_dwn=" << saveDwn << std::endl;
     }
 
     // ========================================================================
-    // Bloque 4: Determinar direccion de busqueda
-    // ========================================================================
-
-    result.converged = false;
-    result.direction = 0;
-
     // Caso A: Busqueda ascendente (SAVEUP > SAVECURR)
+    // ========================================================================
 
     if (saveUp > saveCurr)
     {
         result.direction = 1;
-        context.weights(betaIndex) += xinc;
+
+        context.weights(paramIndex) += xinc;
         saveCurr = evaluateLogLikelihood(context);
         result.iterations++;
 
-        // DO 1 I=1,NINC
         for (int iter = 0; iter < config.maxIterations; ++iter)
         {
-            // WEIGHT(NS+1) = WEIGHT(NS+1) + XINC
-            context.weights(betaIndex) += xinc;
-
-            // CALL PLOG(XPLOG, NFIRST, NLAST)
-            // SAVEUP = XPLOG
+            context.weights(paramIndex) += xinc;
             saveUp = evaluateLogLikelihood(context);
             result.iterations++;
 
             if (config.verbose)
             {
-                std::cout << "[optimizeBeta] Iter " << (iter + 1)
-                          << " UP: beta=" << context.weights(betaIndex)
+                std::cout << "[optimizeParameter] Iter " << (iter + 1)
+                          << " UP: param=" << context.weights(paramIndex)
                           << ", LL=" << saveUp
                           << ", step=" << xinc << std::endl;
             }
 
-            // IF(SAVEUP.LT.SAVECURR) THEN
-            //   WEIGHT(NS+1) = WEIGHT(NS+1) - XINC
-            //   XINC = XINC / 2.0
-            // ENDIF
             if (saveUp < saveCurr)
             {
-                // Empeoro: retroceder y reducir paso
-                context.weights(betaIndex) -= xinc;
+                context.weights(paramIndex) -= xinc;
                 xinc = xinc / 2.0;
 
                 if (config.verbose)
                 {
-                    std::cout << "[optimizeBeta]   Empeoro. Retrocede, nuevo step="
+                    std::cout << "[optimizeParameter]   Empeoro. Retrocede, step="
                               << xinc << std::endl;
                 }
             }
 
-            // IF(SAVEUP.GT.SAVECURR) THEN
-            //   SAVECURR = SAVEUP
-            // ENDIF
             if (saveUp > saveCurr)
             {
-                // Mejoro: actualizar referencia
                 saveCurr = saveUp;
 
                 if (config.verbose)
                 {
-                    std::cout << "[optimizeBeta]   Mejoro. Nueva ref LL="
-                              << saveCurr << std::endl;
+                    std::cout << "[optimizeParameter]   Mejoro. LL=" << saveCurr << std::endl;
                 }
             }
 
-            // Early exit si el paso es muy pequeno
             if (xinc < config.minStep)
             {
                 result.converged = true;
@@ -212,65 +193,46 @@ BetaOptimizationResult optimizeBeta(
     {
         result.direction = -1;
 
-        //   WEIGHT(NS+1) = WEIGHT(NS+1) - XINC
-        //   CALL PLOG(XPLOG, NFIRST, NLAST)
-        //   SAVECURR = XPLOG
-        context.weights(betaIndex) -= xinc;
+        context.weights(paramIndex) -= xinc;
         saveCurr = evaluateLogLikelihood(context);
         result.iterations++;
 
-        // DO 2 I=1,NINC
         for (int iter = 0; iter < config.maxIterations; ++iter)
         {
-            // WEIGHT(NS+1) = WEIGHT(NS+1) - XINC
-            context.weights(betaIndex) -= xinc;
-
-            // CALL PLOG(XPLOG, NFIRST, NLAST)
-            // SAVEDWN = XPLOG
+            context.weights(paramIndex) -= xinc;
             saveDwn = evaluateLogLikelihood(context);
             result.iterations++;
 
             if (config.verbose)
             {
-                std::cout << "[optimizeBeta] Iter " << (iter + 1)
-                          << " DWN: beta=" << context.weights(betaIndex)
+                std::cout << "[optimizeParameter] Iter " << (iter + 1)
+                          << " DWN: param=" << context.weights(paramIndex)
                           << ", LL=" << saveDwn
                           << ", step=" << xinc << std::endl;
             }
 
-            // IF(SAVEDWN.LT.SAVECURR) THEN
-            //   WEIGHT(NS+1) = WEIGHT(NS+1) + XINC
-            //   XINC = XINC / 2.0
-            // ENDIF
             if (saveDwn < saveCurr)
             {
-                // Empeoro: retroceder y reducir paso
-                context.weights(betaIndex) += xinc;
+                context.weights(paramIndex) += xinc;
                 xinc = xinc / 2.0;
 
                 if (config.verbose)
                 {
-                    std::cout << "[optimizeBeta]   Empeoro. Retrocede, nuevo step="
+                    std::cout << "[optimizeParameter]   Empeoro. Retrocede, step="
                               << xinc << std::endl;
                 }
             }
 
-            // IF(SAVEDWN.GT.SAVECURR) THEN
-            //   SAVECURR = SAVEDWN
-            // ENDIF
             if (saveDwn > saveCurr)
             {
-                // Mejoro: actualizar referencia
                 saveCurr = saveDwn;
 
                 if (config.verbose)
                 {
-                    std::cout << "[optimizeBeta]   Mejoro. Nueva ref LL="
-                              << saveCurr << std::endl;
+                    std::cout << "[optimizeParameter]   Mejoro. LL=" << saveCurr << std::endl;
                 }
             }
 
-            // Early exit si el paso es muy pequeno
             if (xinc < config.minStep)
             {
                 result.converged = true;
@@ -280,29 +242,30 @@ BetaOptimizationResult optimizeBeta(
     }
 
     // ========================================================================
-    // Caso C: Sin movimiento (ningun sondeo mejoro)
+    // Caso C: Sin movimiento
     // ========================================================================
 
     if (result.direction == 0)
     {
-        // Beta inicial ya era optimo local
         result.converged = true;
 
         if (config.verbose)
         {
-            std::cout << "[optimizeBeta] Sin movimiento. Beta inicial es optimo local."
+            std::cout << "[optimizeParameter] Sin movimiento. Ya en optimo local."
                       << std::endl;
         }
     }
 
+    // ========================================================================
     // Resultado final
+    // ========================================================================
 
-    result.beta = context.weights(betaIndex);
+    result.value = context.weights(paramIndex);
     result.logLikelihood = saveCurr;
 
     if (config.verbose)
     {
-        std::cout << "[optimizeBeta] Final: beta=" << result.beta
+        std::cout << "[optimizeParameter] Final: param=" << result.value
                   << ", LL=" << result.logLikelihood
                   << ", iters=" << result.iterations
                   << ", dir=" << result.direction
@@ -312,16 +275,106 @@ BetaOptimizationResult optimizeBeta(
     return result;
 }
 
-// ============================================================================
+
+// Implementacion de optimizeBeta() - SIGMAS
+
+BetaOptimizationResult optimizeBeta(
+    LikelihoodContext &context,
+    const BetaOptimizerConfig &config)
+{
+    /**
+     * Traduccion de SUBROUTINE SIGMAS
+     *
+     * Optimiza WEIGHT(NS+1) = beta (sigma-squared inverso)
+     * Paso inicial: XINC = 0.1
+     */
+
+    // Indice de beta: ultima posicion del vector weights
+    // Fortran: WEIGHT(NS+1) donde NS = numero de dimensiones
+    const int betaIndex = static_cast<int>(context.weights.size()) - 1;
+
+    // Usar funcion generica
+    ParameterOptimizationResult genResult = optimizeParameter(context, betaIndex, config);
+
+    // Adaptar resultado al tipo esperado
+    BetaOptimizationResult result;
+    result.value = genResult.value;
+    result.logLikelihood = genResult.logLikelihood;
+    result.iterations = genResult.iterations;
+    result.initialValue = genResult.initialValue;
+    result.initialLL = genResult.initialLL;
+    result.converged = genResult.converged;
+    result.direction = genResult.direction;
+
+    return result;
+}
+
 // Implementacion de optimizeBetaSimple()
-// ============================================================================
 
 double optimizeBetaSimple(LikelihoodContext &context)
 {
-    BetaOptimizerConfig config;
+    BetaOptimizerConfig config = sigmasConfig();
     config.verbose = false;
 
     BetaOptimizationResult result = optimizeBeta(context, config);
+
+    return result.logLikelihood;
+}
+
+// Implementacion de optimizeWeight2() - WINT
+
+WeightOptimizationResult optimizeWeight2(
+    LikelihoodContext &context,
+    const WeightOptimizerConfig &config)
+{
+    /**
+     * Traduccion de SUBROUTINE WINT 
+     *
+     * Optimiza WEIGHT(2) = peso de la segunda dimension (W2)
+     * Paso inicial: XINC = 0.01
+     *
+     * IMPORTANTE: Debe llamarse cuando NS >= 2
+     */
+
+    // Verificar que el modelo tiene al menos 2 dimensiones
+    const int numDimensions = static_cast<int>(context.weights.size()) - 1;
+
+    if (numDimensions < 2)
+    {
+        throw std::invalid_argument(
+            "optimizeWeight2 requiere NS >= 2 (modelo multidimensional). "
+            "Actual: NS = " +
+            std::to_string(numDimensions));
+    }
+
+    // Indice de W2: posicion 1 del vector weights (0-based)
+    const int w2Index = 1;
+
+    // Usar funcion generica
+    ParameterOptimizationResult genResult = optimizeParameter(context, w2Index, config);
+
+    // Adaptar resultado
+    WeightOptimizationResult result;
+    result.value = genResult.value;
+    result.logLikelihood = genResult.logLikelihood;
+    result.iterations = genResult.iterations;
+    result.initialValue = genResult.initialValue;
+    result.initialLL = genResult.initialLL;
+    result.converged = genResult.converged;
+    result.direction = genResult.direction;
+
+    return result;
+}
+
+
+// Implementacion de optimizeWeight2Simple() - WINT
+
+double optimizeWeight2Simple(LikelihoodContext &context)
+{
+    WeightOptimizerConfig config = wintConfig();
+    config.verbose = false;
+
+    WeightOptimizationResult result = optimizeWeight2(context, config);
 
     return result.logLikelihood;
 }
