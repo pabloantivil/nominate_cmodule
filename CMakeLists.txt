@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(nominate_cmodule)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -20,7 +20,7 @@ pkg_check_modules(NLOPT REQUIRED nlopt)
 
 # Incluir directorios
 include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/include)  # nlohmann/json.hpp aquí
+include_directories(${CMAKE_SOURCE_DIR}/include)  # nlohmann/json.hpp está aquí
 include_directories(${CMAKE_SOURCE_DIR}/Eigen)    # Eigen headers
 include_directories(${NLOPT_INCLUDE_DIRS})
 
@@ -31,18 +31,24 @@ else()
     message(WARNING "nlohmann/json NO encontrado. Descarga json.hpp a include/")
 endif()
 
+# ==============================================================
 # EJECUTABLE PRINCIPAL: nominate_cmodule (programa DW-NOMINATE)
-add_executable(nominate_cmodule src/nominate.cpp)
+# ==============================================================
+add_executable(nominate_cmodule src/dwnominate.cpp)
 
 # Enlazar librerías con NLopt de MSYS2
 target_link_libraries(nominate_cmodule ${NLOPT_LIBRARIES})
 target_link_directories(nominate_cmodule PRIVATE ${NLOPT_LIBRARY_DIRS})
 
+# ==============================================================
 # EJECUTABLE DE PRUEBA: test_json (verificación de nlohmann/json)
+# ==============================================================
 add_executable(test_json tests/test_json.cpp)
 # test_json no necesita NLopt ni OpenMP, solo los headers
 
-# EJECUTABLE DE VALIDACIÓN: test_normal_cdf (verificación de normal_cdf.cpp)
+# ==============================================================
+# EJECUTABLE DE VALIDACIÓN: test_normal_cdf
+# ==============================================================
 add_executable(test_normal_cdf 
     tests/test_normal_cdf.cpp
     src/normal_cdf.cpp
@@ -50,7 +56,7 @@ add_executable(test_normal_cdf
 target_compile_features(test_normal_cdf PRIVATE cxx_std_17)
 
 # ==============================================================
-# Test de likelihood 
+# Test de likelihood
 # ==============================================================
 add_executable(test_likelihood
     tests/test_likelihood.cpp
@@ -66,6 +72,45 @@ add_executable(test_sort_utils
     tests/test_sort_utils.cpp
 )
 target_compile_features(test_sort_utils PRIVATE cxx_std_17)
+
+# ==============================================================
+# Test de grid_optimizer 
+# ==============================================================
+add_executable(test_grid_optimizer
+    tests/test_grid_optimizer.cpp
+    src/grid_optimizer.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_grid_optimizer PRIVATE cxx_std_17)
+
+# Test de comparacion SIGMAS
+add_executable(test_sigmas_comparison
+    tests/test_sigmas_comparison.cpp
+)
+target_compile_features(test_sigmas_comparison PRIVATE cxx_std_17)
+
+# ==============================================================
+# Test de WINT 
+# ==============================================================
+add_executable(test_wint
+    tests/test_wint.cpp
+    src/grid_optimizer.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_wint PRIVATE cxx_std_17)
+
+# ==============================================================
+# Test de rollcall_derivatives 
+# ==============================================================
+add_executable(test_rollcall_derivatives
+    tests/test_rollcall_derivatives.cpp
+    src/rollcall_derivatives.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_rollcall_derivatives PRIVATE cxx_std_17)
 
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
