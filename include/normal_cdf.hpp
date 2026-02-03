@@ -51,9 +51,19 @@ public:
      * @param z Puntaje z normal estándar
      * @return pdf(z) / CDF(z)
      *
-     * Usado en cálculos de derivadas en PROX y PROLLC2.
      */
     double pdfOverCdf(double z) const;
+
+    /**
+     * @brief Obtener la razón exp(-z²/2)/CDF(z) - Compatible con Fortran.
+     *
+     * @param z Puntaje z normal estándar
+     * @return exp(-z²/2) / CDF(z) (sin el factor 1/sqrt(2*pi))
+     *
+     * Esto es igual al cálculo ZGAUSS/ZDISTF en Fortran
+     * donde ZGAUSS = exp(-(ZS*ZS)/2.0) y ZDISTF = CDF(ZS).
+     */
+    double gaussOverCdf(double z) const;
 
     /**
      * @brief Obtener el valor z crudo de la tabla en el índice dado.
@@ -110,4 +120,4 @@ private:
     double maxZ_;               // Valor máximo z en la tabla (~5.0)
 };
 
-#endif // NORMAL_CDF_HPP
+#endif 

@@ -112,6 +112,29 @@ add_executable(test_rollcall_derivatives
 )
 target_compile_features(test_rollcall_derivatives PRIVATE cxx_std_17)
 
+# ==============================================================
+# Test de legislator_derivatives (PROX)
+# ==============================================================
+add_executable(test_legislator_derivatives
+    tests/test_legislator_derivatives.cpp
+    src/legislator_derivatives.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_legislator_derivatives PRIVATE cxx_std_17)
+
+# ==============================================================
+# Validacion cruzada PROX vs Fortran 
+# ==============================================================
+add_executable(test_prox_crossvalidation
+    tests/test_prox_crossvalidation.cpp
+    src/legislator_derivatives.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_prox_crossvalidation PRIVATE cxx_std_17)
+
+
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
     target_link_libraries(nominate_cmodule OpenMP::OpenMP_CXX)
