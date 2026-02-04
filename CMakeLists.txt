@@ -134,6 +134,14 @@ add_executable(test_prox_crossvalidation
 )
 target_compile_features(test_prox_crossvalidation PRIVATE cxx_std_17)
 
+# ==============================================================
+# Validacion cruzada REGA vs C++
+# ==============================================================
+add_executable(test_rega_crossvalidation
+    tests/test_rega_crossvalidation.cpp
+    src/simple_ols.cpp
+)
+target_compile_features(test_rega_crossvalidation PRIVATE cxx_std_17)
 
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
