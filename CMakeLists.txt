@@ -143,6 +143,19 @@ add_executable(test_rega_crossvalidation
 )
 target_compile_features(test_rega_crossvalidation PRIVATE cxx_std_17)
 
+# ==============================================================
+# Validacion cruzada XINT
+# ==============================================================
+add_executable(test_xint_crossvalidation
+    tests/test_xint_crossvalidation.cpp
+    src/optimize_legislators.cpp
+    src/legislator_derivatives.cpp
+    src/simple_ols.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+)
+target_compile_features(test_xint_crossvalidation PRIVATE cxx_std_17)
+
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
     target_link_libraries(nominate_cmodule OpenMP::OpenMP_CXX)
