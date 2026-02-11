@@ -31,4 +31,4 @@ Eigen::VectorXd simpleOLS(
     const Eigen::VectorXd &y,
     double eigenThreshold = 0.01);
 
-#endif 
+#endif // SIMPLE_OLS_HPP

@@ -437,4 +437,4 @@ LegislatorDerivativesResult computeLegislatorDerivativesSimple(
     const Eigen::VectorXd &weights,
     const NormalCDF &normalCDF);
 
-#endif 
+#endif // LEGISLATOR_DERIVATIVES_HPP

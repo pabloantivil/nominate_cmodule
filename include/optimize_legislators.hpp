@@ -95,4 +95,4 @@ LegislatorOptimizationResult optimizeLegislator(
     int lastPeriod,
     const LegislatorOptimizerConfig &config = LegislatorOptimizerConfig());
 
-#endif 
+#endif // OPTIMIZE_LEGISLATORS_HPP

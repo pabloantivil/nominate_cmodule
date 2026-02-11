@@ -120,4 +120,4 @@ private:
     double maxZ_;               // Valor máximo z en la tabla (~5.0)
 };
 
-#endif 
+#endif // NORMAL_CDF_HPP
