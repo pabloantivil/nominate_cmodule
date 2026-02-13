@@ -1,5 +1,5 @@
 /**
- * @brief Optimizador de parametros de roll calls (RCINT2).
+ * Optimizador de parametros de roll calls (RCINT2).
  *
  * RCINT2 optimiza los parametros de cada roll call (votacion):
  * - ZMID (midpoint): Posicion del centro del plano de corte
@@ -16,7 +16,7 @@
 #include <vector>
 
 /**
- * @brief Configuracion del optimizador de roll calls.
+ * Configuracion del optimizador de roll calls.
  */
 struct RollCallOptimizerConfig
 {
@@ -33,7 +33,7 @@ struct RollCallOptimizerConfig
 };
 
 /**
- * @brief Resultado de la optimizacion de un roll call.
+ * Resultado de la optimizacion de un roll call.
  */
 struct RollCallOptimizationResult
 {
@@ -98,7 +98,7 @@ struct RollCallOptimizationResult
 };
 
 /**
- * @brief Optimiza los parametros de un roll call especifico.
+ * Optimiza los parametros de un roll call especifico.
  *
  * @param legislatorCoords Coordenadas de legisladores (numLeg x numDim)
  * @param rollCallIndex Indice del roll call a optimizar (0-based)
@@ -121,7 +121,7 @@ RollCallOptimizationResult optimizeRollCall(
     const RollCallOptimizerConfig &config = RollCallOptimizerConfig());
 
 /**
- * @brief Version con RollCallParameters.
+ * Version con RollCallParameters.
  */
 RollCallOptimizationResult optimizeRollCall(
     const Eigen::MatrixXd &legislatorCoords,

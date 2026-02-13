@@ -6,12 +6,7 @@
 #include <stdexcept>
 
 /**
- * @brief Tabla de búsqueda precalculada para CDF normal estándar y valores relacionados.
- *
- * Esta clase implementa la funcionalidad de la subrutina Fortran init_zdf(),
- * que precalcula una tabla de búsqueda para la función de distribución acumulada
- * (CDF) normal estándar para acelerar evaluaciones repetidas durante la optimización
- * DW-NOMINATE.
+ * Tabla de búsqueda precalculada para CDF normal estándar y valores relacionados.
  *
  * La tabla cubre el rango [-5.0, 5.0] con una resolución de 0.0001 (10,000 puntos por unidad).
  *
@@ -20,13 +15,13 @@ class NormalCDF
 {
 public:
     /**
-     * @brief Constructor que precalcula la tabla de búsqueda CDF.
+     * Constructor que precalcula la tabla de búsqueda CDF.
      *
      */
     NormalCDF();
 
     /**
-     * @brief Obtener el valor CDF para un puntaje z dado.
+     * Obtener el valor CDF para un puntaje z dado.
      *
      * @param z Puntaje z normal estándar
      * @return CDF(z) = P(Z <= z) where Z ~ N(0,1)
@@ -36,7 +31,7 @@ public:
     double cdf(double z) const;
 
     /**
-     * @brief Obtener el logaritmo natural del valor CDF.
+     * Obtener el logaritmo natural del valor CDF.
      *
      * @param z Puntaje z normal estándar
      * @return log(CDF(z))
@@ -46,7 +41,7 @@ public:
     double logCdf(double z) const;
 
     /**
-     * @brief Obtener la razón pdf(z)/CDF(z).
+     * Obtener la razón pdf(z)/CDF(z).
      *
      * @param z Puntaje z normal estándar
      * @return pdf(z) / CDF(z)
@@ -55,7 +50,7 @@ public:
     double pdfOverCdf(double z) const;
 
     /**
-     * @brief Obtener la razón exp(-z²/2)/CDF(z) - Compatible con Fortran.
+     * Obtener la razón exp(-z²/2)/CDF(z) - Compatible con Fortran.
      *
      * @param z Puntaje z normal estándar
      * @return exp(-z²/2) / CDF(z) (sin el factor 1/sqrt(2*pi))
@@ -66,7 +61,7 @@ public:
     double gaussOverCdf(double z) const;
 
     /**
-     * @brief Obtener el valor z crudo de la tabla en el índice dado.
+     * Obtener el valor z crudo de la tabla en el índice dado.
      *
      * @param index Índice de la tabla (basado en 0, de 0 a tableSize-1)
      * @return Valor z
@@ -76,14 +71,14 @@ public:
     double getZ(size_t index) const;
 
     /**
-     * @brief Obtener el tamaño de la tabla.
+     * Obtener el tamaño de la tabla.
      *
      * @return Número de filas en la tabla de búsqueda
      */
     size_t getTableSize() const { return tableSize_; }
 
     /**
-     * @brief Obtener la resolución (puntos por unidad).
+     * Obtener la resolución (puntos por unidad).
      *
      * @return Valor de resolución (10000.0)
      */
@@ -91,14 +86,14 @@ public:
 
 private:
     /**
-     * @brief Inicializar la tabla de búsqueda (llamado por el constructor).
+     * Inicializar la tabla de búsqueda (llamado por el constructor).
      *
      * Traducción directa de la lógica init_zdf() de Fortran.
      */
     void initializeTable();
 
     /**
-     * @brief Realizar interpolación lineal en la tabla.
+     * Realizar interpolación lineal en la tabla.
      *
      * @param z Puntaje z a buscar
      * @param column Índice de columna (0=z, 1=CDF, 2=logCDF, 3=pdf/CDF)

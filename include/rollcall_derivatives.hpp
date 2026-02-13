@@ -2,7 +2,7 @@
 #define ROLLCALL_DERIVATIVES_HPP
 
 /**
- * @brief Calculo de derivadas y log-likelihood para parametros de roll calls
+ * Calculo de derivadas y log-likelihood para parametros de roll calls
  *
  * PROLLC2 calcula derivadas del log-likelihood respecto a los parametros
  * de una votacion especifica (midpoint y spread), necesarias para el
@@ -15,7 +15,7 @@
 #include <vector>
 
 /**
- * @brief Resultado del calculo de derivadas para un roll call.
+ * Resultado del calculo de derivadas para un roll call.
  */
 struct RollCallDerivativesResult
 {
@@ -41,7 +41,7 @@ struct RollCallDerivativesResult
     int positiveZS; // KLASS2: votos con ZS > 0
 
     /**
-     * @brief Constructor por defecto.
+     * Constructor por defecto.
      */
     RollCallDerivativesResult()
         : logLikelihood(0.0),
@@ -57,7 +57,7 @@ struct RollCallDerivativesResult
     }
 
     /**
-     * @brief Constructor con dimension especificada.
+     * Constructor con dimension especificada.
      */
     explicit RollCallDerivativesResult(int numDimensions)
         : logLikelihood(0.0),
@@ -75,7 +75,7 @@ struct RollCallDerivativesResult
     }
 
     /**
-     * @brief Calcula precision de clasificacion.
+     * Calcula precision de clasificacion.
      */
     double getAccuracy() const
     {
@@ -86,7 +86,7 @@ struct RollCallDerivativesResult
 };
 
 /**
- * @brief Calcula log-likelihood y derivadas para un roll call especifico.
+ * Calcula log-likelihood y derivadas para un roll call especifico.
  *
  * @param legislatorCoords Coordenadas de legisladores (numLeg x numDim)
  * @param rollCallIndex Indice del roll call a evaluar (0-based)
@@ -107,7 +107,7 @@ RollCallDerivativesResult computeRollCallDerivatives(
     const NormalCDF &normalCDF);
 
 /**
- * @brief Version simplificada que usa RollCallParameters.
+ * Version simplificada que usa RollCallParameters.
  */
 RollCallDerivativesResult computeRollCallDerivatives(
     const Eigen::MatrixXd &legislatorCoords,

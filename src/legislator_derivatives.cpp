@@ -1,7 +1,7 @@
 /**
- * @brief Implementacion de computeLegislatorDerivatives (PROX).
+ * Implementacion de computeLegislatorDerivatives (PROX).
  *
- * Calcula derivadas del log-likelihood respecto a las coordenadas espaciales de un legislador especifico, 
+ * Calcula derivadas del log-likelihood respecto a las coordenadas espaciales de un legislador especifico,
  * considerando modelos temporales.
  */
 
@@ -13,7 +13,7 @@ namespace
 {
 
     /**
-     * @brief Reconstruye coordenadas del legislador para un periodo segun modelo temporal.
+     * Reconstruye coordenadas del legislador para un periodo segun modelo temporal.
      *
      * Implementa:
      * - Constante: x_k = beta_0k
@@ -61,7 +61,7 @@ namespace
     }
 
     /**
-     * @brief Calcula distancias al cuadrado y lineales hacia puntos Yes/No.
+     * Calcula distancias al cuadrado y lineales hacia puntos Yes/No.
      *
      * Geometria DW-NOMINATE:
      * - Punto Yes = zmid - dyn
@@ -88,7 +88,7 @@ namespace
     {
         for (int k = 0; k < numDim; ++k)
         {
-            // Punto Yes = zmid - dyn 
+            // Punto Yes = zmid - dyn
             double diffYes = coords(k) - midpoint(k) + spread(k);
             // Punto No = zmid + dyn
             double diffNo = coords(k) - midpoint(k) - spread(k);
@@ -101,7 +101,7 @@ namespace
     }
 
     /**
-     * @brief Calcula utilidades ponderadas para ambas opciones de voto.
+     * Calcula utilidades ponderadas para ambas opciones de voto.
      *
      * @param dyesSquared Distancias al cuadrado hacia Yes
      * @param dnoSquared Distancias al cuadrado hacia No
@@ -138,7 +138,7 @@ namespace
     }
 
     /**
-     * @brief Calcula derivadas base respecto a coordenadas del legislador.
+     * Calcula derivadas base respecto a coordenadas del legislador.
      *
      * @param dyesLinear Distancias lineales hacia Yes
      * @param dnoLinear Distancias lineales hacia No
@@ -185,7 +185,7 @@ namespace
     }
 
     /**
-     * @brief Expande derivadas base a derivadas para modelo temporal.
+     * Expande derivadas base a derivadas para modelo temporal.
      *
      * @param baseDerivs Derivadas base (dL/dx_k)
      * @param timeTrends Valores temporales
@@ -251,7 +251,7 @@ namespace
     }
 
     /**
-     * @brief Actualiza la matriz de informacion con producto externo.
+     * Actualiza la matriz de informacion con producto externo.
      *
      * @param infoMatrix Matriz a actualizar
      * @param derivs Vector de derivadas
@@ -273,10 +273,7 @@ namespace
 
 } // namespace anonimo
 
-// ============================================================================
 // Implementacion de computeLegislatorDerivatives
-// ============================================================================
-
 LegislatorDerivativesResult computeLegislatorDerivatives(
     int legislatorIndex,
     const LegislatorPeriodInfo &periodInfo,

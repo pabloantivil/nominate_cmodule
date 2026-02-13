@@ -3,7 +3,7 @@
 
 /**
  * @file simple_ols.hpp
- * @brief Subrutina REGA (OLS) a C++.
+ * Subrutina REGA (OLS) a C++.
  *
  * Implementa la regresion OLS clasica usando la formula:
  *   beta = (X'X)^-1 X' y
@@ -15,7 +15,7 @@
 #include <Eigen/Dense>
 
 /**
- * @brief Regresion OLS simple
+ *  Regresion OLS simple
  *
  * @param ns Numero de observaciones (filas de A)
  * @param nf Numero de variables (columnas de A)

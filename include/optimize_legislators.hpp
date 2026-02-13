@@ -3,8 +3,7 @@
 
 /**
  * @file optimize_legislators.hpp
- * @brief Optimizador de parametros de legisladores (XINT).
- *
+ * Optimizador de parametros de legisladores (XINT).
  */
 
 #include "legislator_derivatives.hpp"
@@ -15,7 +14,7 @@
 #include <vector>
 
 /**
- * @brief Configuracion del optimizador de legisladores.
+ * Configuracion del optimizador de legisladores.
  */
 struct LegislatorOptimizerConfig
 {
@@ -30,7 +29,7 @@ struct LegislatorOptimizerConfig
 };
 
 /**
- * @brief Resultado de la optimizacion de un legislador.
+ * Resultado de la optimizacion de un legislador.
  */
 struct LegislatorOptimizationResult
 {
@@ -63,36 +62,23 @@ struct LegislatorOptimizationResult
 };
 
 /**
- * @brief Optimiza las coordenadas de un legislador (XINT).
- *
- * @param legislatorIndex Indice del legislador (NEP, 0-based)
- * @param periodInfo Informacion de periodos servidos (LWHERE/KWHERE)
- * @param legislatorDataCoords Matriz XDATA (dataIndex x numDim)
- * @param rollCallMidpoints Matriz ZMID (rollCall x numDim)
- * @param rollCallSpreads Matriz DYN (rollCall x numDim)
- * @param votes Matriz de votos
- * @param validRollCalls Vector de roll calls validos (RCBAD)
- * @param weights Vector de pesos [w1..wNS, beta]
- * @param normalCDF Tabla CDF precomputada
- * @param maxModel Modelo temporal maximo permitido
- * @param firstPeriod Periodo inicial (0-based)
- * @param lastPeriod Periodo final (0-based)
- * @param config Configuracion del optimizador
+ * Optimiza las coordenadas de un legislador (XINT).
+ * 
  * @return Resultado de la optimizacion del legislador
  */
 LegislatorOptimizationResult optimizeLegislator(
-    int legislatorIndex,
-    const LegislatorPeriodInfo &periodInfo,
-    const Eigen::MatrixXd &legislatorDataCoords,
-    const Eigen::MatrixXd &rollCallMidpoints,
-    const Eigen::MatrixXd &rollCallSpreads,
-    const VoteMatrix &votes,
-    const std::vector<bool> &validRollCalls,
-    const Eigen::VectorXd &weights,
-    const NormalCDF &normalCDF,
-    TemporalModel maxModel,
-    int firstPeriod,
-    int lastPeriod,
-    const LegislatorOptimizerConfig &config = LegislatorOptimizerConfig());
+    int legislatorIndex, // Indice del legislador (NEP, 0-based)
+    const LegislatorPeriodInfo &periodInfo, // Informacion de periodos servidos (LWHERE/KWHERE)
+    const Eigen::MatrixXd &legislatorDataCoords, // Matriz XDATA (dataIndex x numDim)
+    const Eigen::MatrixXd &rollCallMidpoints, // Matriz ZMID (rollCall x numDim)
+    const Eigen::MatrixXd &rollCallSpreads, // Matriz DYN (rollCall x numDim)
+    const VoteMatrix &votes, // Matriz de votos
+    const std::vector<bool> &validRollCalls, // Vector de roll calls validos (RCBAD)
+    const Eigen::VectorXd &weights, // Vector de pesos [w1..wNS, beta]
+    const NormalCDF &normalCDF, // Tabla CDF precomputada
+    TemporalModel maxModel, // Modelo temporal maximo permitido
+    int firstPeriod, // Periodo inicial (0-based)
+    int lastPeriod, // Periodo final (0-based)
+    const LegislatorOptimizerConfig &config = LegislatorOptimizerConfig()); // Configuracion del optimizador
 
 #endif // OPTIMIZE_LEGISLATORS_HPP

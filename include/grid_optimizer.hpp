@@ -2,14 +2,11 @@
 #define GRID_OPTIMIZER_HPP
 
 /**
- * @brief Optimizadores por busqueda grid para parametros de DW-NOMINATE
+ * Optimizadores por busqueda grid para parametros de DW-NOMINATE
  *
  * Optimizadores de Parametros
  * - SIGMAS() -> optimizeBeta()
  * - WINT() -> optimizeWeights()
- *
- * Traduce las subrutinas de optimizacion unidimensional del codigo Fortran
- * manteniendo el algoritmo de busqueda grid
  */
 
 #include "likelihood.hpp"
@@ -19,7 +16,7 @@
 #include <functional>
 
 /**
- * @brief Resultado de la optimizacion de un parametro escalar
+ * Resultado de la optimizacion de un parametro escalar
  *
  * Estructura generica usada por optimizeBeta() y optimizeWeights()
  */
@@ -39,7 +36,7 @@ using BetaOptimizationResult = ParameterOptimizationResult;
 using WeightOptimizationResult = ParameterOptimizationResult;
 
 /**
- * @brief Parametros de configuracion para optimizadores de busqueda grid.
+ * Parametros de configuracion para optimizadores de busqueda grid.
  *
  * Valores por defecto corresponden a SIGMAS:
  * - NINC = 15 (maximo iteraciones por direccion)
@@ -55,7 +52,7 @@ struct GridOptimizerConfig
     bool verbose;       // Imprimir progreso
 
     /**
-     * @brief Constructor con valores por defecto (SIGMAS).
+     * Constructor con valores por defecto (SIGMAS).
      */
     GridOptimizerConfig()
         : maxIterations(15),
@@ -66,7 +63,7 @@ struct GridOptimizerConfig
     }
 
     /**
-     * @brief Constructor con paso inicial personalizado.
+     * Constructor con paso inicial personalizado.
      * @param step Paso inicial (0.1 para SIGMAS, 0.01 para WINT)
      */
     explicit GridOptimizerConfig(double step)
@@ -83,7 +80,7 @@ using BetaOptimizerConfig = GridOptimizerConfig;
 using WeightOptimizerConfig = GridOptimizerConfig;
 
 /**
- * @brief Contexto de datos necesario para evaluar log-likelihood
+ * Contexto de datos necesario para evaluar log-likelihood
  *
  * Encapsula todos los datos que SIGMAS()/WINT() acceden via modulos globales
  * (xxcom_mod, mine_mod) en el codigo Fortran
@@ -115,7 +112,7 @@ struct LikelihoodContext
 };
 
 /**
- * @brief Optimiza un parametro escalar via busqueda grid con backtracking.
+ * Optimiza un parametro escalar via busqueda grid con backtracking.
  *
  * Funcion generica que implementa el algoritmo comun a SIGMAS() y WINT().
  *
@@ -138,7 +135,7 @@ ParameterOptimizationResult optimizeParameter(
     const GridOptimizerConfig &config);
 
 /**
- * @brief Optimiza el parametro beta (sigma-squared inverso).
+ * Optimiza el parametro beta (sigma-squared inverso).
  *
  * @param context Contexto con datos del modelo
  * @param config Configuracion (por defecto: step=0.1, maxIter=15)
@@ -150,12 +147,12 @@ BetaOptimizationResult optimizeBeta(
     const BetaOptimizerConfig &config = BetaOptimizerConfig());
 
 /**
- * @brief Version que retorna solo el log-likelihood optimizado
+ * Version que retorna solo el log-likelihood optimizado
  */
 double optimizeBetaSimple(LikelihoodContext &context);
 
 /**
- * @brief Optimiza el peso de la segunda dimension (W2)
+ * Optimiza el peso de la segunda dimension (W2)
  *
  * IMPORTANTE: Solo debe llamarse cuando NS >= 2 (modelos multidimensionales)
  * En modelos unidimensionales (NS=1), WEIGHT(2) no existe
@@ -170,12 +167,12 @@ WeightOptimizationResult optimizeWeight2(
     const WeightOptimizerConfig &config = WeightOptimizerConfig(0.01));
 
 /**
- * @brief Version simplificada que retorna solo el log-likelihood optimizado
+ * Version simplificada que retorna solo el log-likelihood optimizado
  */
 double optimizeWeight2Simple(LikelihoodContext &context);
 
 /**
- * @brief Configuracion por defecto para optimizacion de beta (SIGMAS)
+ * Configuracion por defecto para optimizacion de beta (SIGMAS)
  */
 inline GridOptimizerConfig sigmasConfig()
 {
@@ -183,7 +180,7 @@ inline GridOptimizerConfig sigmasConfig()
 }
 
 /**
- * @brief Configuracion por defecto para optimizacion de pesos (WINT)
+ * Configuracion por defecto para optimizacion de pesos (WINT)
  */
 inline GridOptimizerConfig wintConfig()
 {

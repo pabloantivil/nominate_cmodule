@@ -1,5 +1,5 @@
 /**
- * @brief Calculo de derivadas y log-likelihood para parametros de legisladores (PROX)
+ * Calculo de derivadas y log-likelihood para parametros de legisladores (PROX)
  */
 
 #ifndef LEGISLATOR_DERIVATIVES_HPP
@@ -11,7 +11,7 @@
 #include <vector>
 
 /**
- * @brief Tipo de modelo temporal para coordenadas de legisladores.
+ * Tipo de modelo temporal para coordenadas de legisladores.
  */
 enum class TemporalModel
 {
@@ -22,7 +22,7 @@ enum class TemporalModel
 };
 
 /**
- * @brief Informacion de un periodo (congreso) en que sirvio el legislador.
+ * Informacion de un periodo (congreso) en que sirvio el legislador.
  */
 struct PeriodInfo
 {
@@ -43,7 +43,7 @@ struct PeriodInfo
 };
 
 /**
- * @brief Resultado del calculo de derivadas para un legislador.
+ * Resultado del calculo de derivadas para un legislador.
  */
 struct LegislatorDerivativesResult
 {
@@ -80,7 +80,7 @@ struct LegislatorDerivativesResult
     std::vector<int> periodErrors;           // KBIGLOG(MWHERE,3)
 
     /**
-     * @brief Constructor por defecto.
+     * Constructor por defecto.
      */
     LegislatorDerivativesResult()
         : logLikelihood(0.0),
@@ -92,7 +92,7 @@ struct LegislatorDerivativesResult
     }
 
     /**
-     * @brief Constructor con dimension especificada.
+     * Constructor con dimension especificada.
      *
      * @param numDimensions Numero de dimensiones espaciales (NS)
      * @param numPeriods Numero de periodos en que sirvio el legislador
@@ -119,7 +119,7 @@ struct LegislatorDerivativesResult
     }
 
     /**
-     * @brief Calcula precision de clasificacion.
+     * Calcula precision de clasificacion.
      */
     double getAccuracy() const
     {
@@ -129,7 +129,7 @@ struct LegislatorDerivativesResult
     }
 
     /**
-     * @brief Obtiene el vector de derivadas concatenado segun el modelo temporal.
+     * Obtiene el vector de derivadas concatenado segun el modelo temporal.
      *
      * @param model Tipo de modelo temporal
      * @return Vector de derivadas con dimension apropiada
@@ -172,7 +172,7 @@ struct LegislatorDerivativesResult
     }
 
     /**
-     * @brief Obtiene la matriz de informacion segun el modelo temporal.
+     * Obtiene la matriz de informacion segun el modelo temporal.
      *
      * @param model Tipo de modelo temporal
      * @return Referencia a la matriz de informacion apropiada
@@ -195,14 +195,14 @@ struct LegislatorDerivativesResult
 };
 
 /**
- * @brief Coeficientes del modelo temporal para un legislador.
+ * Coeficientes del modelo temporal para un legislador.
  */
 struct TemporalCoefficients
 {
     Eigen::MatrixXd beta; // (4 x NS): beta[i][k] = coeficiente i para dimension k
 
     /**
-     * @brief Constructor.
+     * Constructor.
      * @param numDimensions Numero de dimensiones espaciales
      */
     explicit TemporalCoefficients(int numDimensions)
@@ -211,7 +211,7 @@ struct TemporalCoefficients
     }
 
     /**
-     * @brief Acceso al coeficiente.
+     * Acceso al coeficiente.
      * @param order Orden del termino (0=constante, 1=lineal, etc.)
      * @param dimension Indice de dimension (0-based)
      */
@@ -226,7 +226,7 @@ struct TemporalCoefficients
     }
 
     /**
-     * @brief Obtiene fila como vector para una dimension.
+     * Obtiene fila como vector para una dimension.
      */
     Eigen::VectorXd getForDimension(int dimension) const
     {
@@ -234,7 +234,7 @@ struct TemporalCoefficients
     }
 
     /**
-     * @brief Establece coeficientes para un modelo constante (solo beta_0).
+     * Establece coeficientes para un modelo constante (solo beta_0).
      */
     void setConstant(const Eigen::VectorXd &beta0)
     {
@@ -243,14 +243,14 @@ struct TemporalCoefficients
 };
 
 /**
- * @brief Matriz de tendencias temporales.
+ * Matriz de tendencias temporales.
  */
 struct TimeTrends
 {
     Eigen::MatrixXd values; // (numPeriods x 4): [1, t, t^2, t^3]
 
     /**
-     * @brief Constructor con periodos.
+     * Constructor con periodos.
      * @param numPeriods Numero maximo de periodos
      */
     explicit TimeTrends(int numPeriods)
@@ -261,7 +261,7 @@ struct TimeTrends
     }
 
     /**
-     * @brief Establece valores temporales para un periodo.
+     * Establece valores temporales para un periodo.
      * @param period Indice del periodo (0-based)
      * @param t Valor del tiempo normalizado
      */
@@ -274,7 +274,7 @@ struct TimeTrends
     }
 
     /**
-     * @brief Acceso al valor temporal.
+     * Acceso al valor temporal.
      * @param period Indice del periodo (0-based)
      * @param order Orden del termino (0=1, 1=t, 2=t^2, 3=t^3)
      */
@@ -285,7 +285,7 @@ struct TimeTrends
 };
 
 /**
- * @brief Informacion sobre los periodos en que sirvio un legislador.
+ * Informacion sobre los periodos en que sirvio un legislador.
  */
 struct LegislatorPeriodInfo
 {
@@ -294,7 +294,7 @@ struct LegislatorPeriodInfo
     std::vector<int> rollCallCounts; // MCONG(j,2): numero de votaciones por periodo
 
     /**
-     * @brief Constructor.
+     * Constructor.
      * @param numPeriods Numero total de periodos
      */
     explicit LegislatorPeriodInfo(int numPeriods)
@@ -305,7 +305,7 @@ struct LegislatorPeriodInfo
     }
 
     /**
-     * @brief Marca que el legislador sirvio en un periodo.
+     * Marca que el legislador sirvio en un periodo.
      * @param period Indice del periodo (0-based)
      * @param dataIndex Indice en la matriz de datos
      * @param numRollCalls Numero de votaciones en ese periodo
@@ -318,7 +318,7 @@ struct LegislatorPeriodInfo
     }
 
     /**
-     * @brief Verifica si el legislador sirvio en un periodo.
+     * Verifica si el legislador sirvio en un periodo.
      */
     bool servedIn(int period) const
     {
@@ -327,14 +327,13 @@ struct LegislatorPeriodInfo
 };
 
 /**
- * @brief Matriz de votos extendida con soporte para multiples periodos.
- * Organizada para acceso eficiente por legislador y periodo.
+ * Matriz de votos extendida con soporte para multiples periodos.
  */
 class LegislatorVoteAccess
 {
 public:
     /**
-     * @brief Constructor.
+     * Constructor.
      * @param votes Matriz de votos base
      * @param rollCallsPerPeriod Numero de votaciones por periodo
      */
@@ -354,7 +353,7 @@ public:
     }
 
     /**
-     * @brief Obtiene el voto de un legislador en un periodo y votacion.
+     * Obtiene el voto de un legislador en un periodo y votacion.
      * @param legDataIndex Indice del legislador en datos
      * @param period Indice del periodo
      * @param rcInPeriod Indice de votacion dentro del periodo
@@ -380,61 +379,38 @@ private:
 };
 
 /**
- * @brief Calcula log-likelihood y derivadas para un legislador especifico.
- *
- * @param legislatorIndex Indice del legislador (NEP, 0-based)
- * @param periodInfo Informacion de periodos del legislador
- * @param timeTrends Matriz de tendencias temporales (ATIME)
- * @param coefficients Coeficientes del modelo temporal (XBETA)
- * @param rollCallMidpoints Puntos medios de votaciones (ZMID)
- * @param rollCallSpreads Spreads de votaciones (DYN)
- * @param votes Matriz de votos
- * @param validRollCalls Mascara de votaciones validas (RCBAD)
- * @param weights Vector de pesos [w1, ..., wNS, beta]
- * @param normalCDF Tabla CDF precomputada
- * @param model Tipo de modelo temporal
- * @param firstPeriod Primer periodo del rango (NFIRST, 0-based)
- * @param lastPeriod Ultimo periodo del rango (NLAST, 0-based)
+ * Calcula log-likelihood y derivadas para un legislador especifico.
  * @return Resultado con log-likelihood, derivadas, matrices de informacion
  */
 LegislatorDerivativesResult computeLegislatorDerivatives(
-    int legislatorIndex,
-    const LegislatorPeriodInfo &periodInfo,
-    const TimeTrends &timeTrends,
-    const TemporalCoefficients &coefficients,
-    const Eigen::MatrixXd &rollCallMidpoints,
-    const Eigen::MatrixXd &rollCallSpreads,
-    const VoteMatrix &votes,
-    const std::vector<bool> &validRollCalls,
-    const Eigen::VectorXd &weights,
-    const NormalCDF &normalCDF,
-    TemporalModel model,
-    int firstPeriod,
-    int lastPeriod);
+    int legislatorIndex, // Indice del legislador (NEP, 0-based)
+    const LegislatorPeriodInfo &periodInfo, // Informacion de periodos del legislador
+    const TimeTrends &timeTrends, // Matriz de tendencias temporales (ATIME)
+    const TemporalCoefficients &coefficients, // Coeficientes del modelo temporal (XBETA)
+    const Eigen::MatrixXd &rollCallMidpoints, // Puntos medios de votaciones (ZMID)
+    const Eigen::MatrixXd &rollCallSpreads, // Spreads de votaciones (DYN)
+    const VoteMatrix &votes, // Matriz de votos
+    const std::vector<bool> &validRollCalls, // Mascara de votaciones validas (RCBAD)
+    const Eigen::VectorXd &weights, // Vector de pesos [w1, ..., wNS, beta]
+    const NormalCDF &normalCDF, // Tabla CDF precomputada
+    TemporalModel model, // Tipo de modelo temporal
+    int firstPeriod, // Primer periodo del rango (NFIRST, 0-based)
+    int lastPeriod); // Ultimo periodo del rango (NLAST, 0-based)
 
 /**
- * @brief Version simplificada para modelo constante con un solo periodo.
- *
+ * Version simplificada para modelo constante con un solo periodo.
  * Para testing y casos simples donde no hay evolucion temporal.
- *
- * @param legislatorCoords Coordenadas actuales del legislador (1 x NS)
- * @param rollCallMidpoints Puntos medios de votaciones (numRC x NS)
- * @param rollCallSpreads Spreads de votaciones (numRC x NS)
- * @param votes Vector de votos del legislador (numRC)
- * @param voteMissing Vector de missing data (numRC)
- * @param validRollCalls Mascara de votaciones validas
- * @param weights Vector de pesos [w1, ..., wNS, beta]
- * @param normalCDF Tabla CDF precomputada
+ * 
  * @return Resultado con log-likelihood y derivadas para modelo constante
  */
 LegislatorDerivativesResult computeLegislatorDerivativesSimple(
-    const Eigen::VectorXd &legislatorCoords,
-    const Eigen::MatrixXd &rollCallMidpoints,
-    const Eigen::MatrixXd &rollCallSpreads,
-    const std::vector<bool> &votes,
-    const std::vector<bool> &voteMissing,
-    const std::vector<bool> &validRollCalls,
-    const Eigen::VectorXd &weights,
-    const NormalCDF &normalCDF);
+    const Eigen::VectorXd &legislatorCoords, // Coordenadas actuales del legislador (1 x NS)
+    const Eigen::MatrixXd &rollCallMidpoints, // Puntos medios de votaciones (numRC x NS)
+    const Eigen::MatrixXd &rollCallSpreads, // Spreads de votaciones (numRC x NS)
+    const std::vector<bool> &votes, // Vector de votos del legislador (numRC)
+    const std::vector<bool> &voteMissing, // Vector de missing data (numRC)
+    const std::vector<bool> &validRollCalls, // Mascara de votaciones validas
+    const Eigen::VectorXd &weights, // Vector de pesos [w1, ..., wNS, beta]
+    const NormalCDF &normalCDF); // Tabla CDF precomputada
 
 #endif // LEGISLATOR_DERIVATIVES_HPP

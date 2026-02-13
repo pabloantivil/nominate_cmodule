@@ -1,12 +1,9 @@
 /**
- * @brief Implementacion de optimizadores por busqueda grid para DW-NOMINATE.
+ * Implementacion de optimizadores por busqueda grid para DW-NOMINATE.
  *
  * Optimizadores de Parametros
  * - SIGMAS() -> optimizeBeta()
  * - WINT() -> optimizeWeight2()
- *
- * Este archivo traduce las subrutinas SIGMAS() y WINT() del codigo Fortran
- * original.
  *
  * Diferencias:
  * - SIGMAS: optimiza WEIGHT(NS+1) con paso 0.1
@@ -19,14 +16,8 @@
 #include <iomanip>
 #include <stdexcept>
 
-// ============================================================================
-// Funcion auxiliar: evalua log-likelihood con el estado actual
-// ============================================================================
-
 /**
- * @brief Evalua log-likelihood usando computeLogLikelihood()
- *
- * Equivalente a: CALL PLOG(XPLOG, NFIRST, NLAST)
+ * Evalua log-likelihood usando computeLogLikelihood(). Equivalente a: CALL PLOG(XPLOG, NFIRST, NLAST)
  *
  * @param ctx Contexto con datos del modelo
  * @return Log-likelihood total (XPLOG)
@@ -53,7 +44,7 @@ static double evaluateLogLikelihood(const LikelihoodContext &ctx)
 }
 
 // ============================================================================
-// Implementacion de optimizeParameter() 
+// Implementacion de optimizeParameter()
 // ============================================================================
 
 ParameterOptimizationResult optimizeParameter(
@@ -89,10 +80,7 @@ ParameterOptimizationResult optimizeParameter(
 
     double xinc = config.initialStep;
 
-    // ========================================================================
-    // Bloque 1: Evaluar punto actual
-    // ========================================================================
-
+    // Evaluar punto actual
     double saveCurr = evaluateLogLikelihood(context);
     result.initialLL = saveCurr;
     result.iterations++;
@@ -105,19 +93,13 @@ ParameterOptimizationResult optimizeParameter(
                   << std::endl;
     }
 
-    // ========================================================================
-    // Bloque 2: Sondeo hacia arriba (+XINC)
-    // ========================================================================
-
+    // Sondeo hacia arriba (+XINC)
     context.weights(paramIndex) += xinc;
     double saveUp = evaluateLogLikelihood(context);
     result.iterations++;
     context.weights(paramIndex) -= xinc; // Restaurar
 
-    // ========================================================================
-    // Bloque 3: Sondeo hacia abajo (-XINC)
-    // ========================================================================
-
+    // Sondeo hacia abajo (-XINC)
     context.weights(paramIndex) -= xinc;
     double saveDwn = evaluateLogLikelihood(context);
     result.iterations++;
@@ -129,10 +111,7 @@ ParameterOptimizationResult optimizeParameter(
                   << ", LL_dwn=" << saveDwn << std::endl;
     }
 
-    // ========================================================================
     // Caso A: Busqueda ascendente (SAVEUP > SAVECURR)
-    // ========================================================================
-
     if (saveUp > saveCurr)
     {
         result.direction = 1;
@@ -185,10 +164,7 @@ ParameterOptimizationResult optimizeParameter(
         }
     }
 
-    // ========================================================================
     // Caso B: Busqueda descendente (SAVEDWN > SAVECURR)
-    // ========================================================================
-
     if (saveDwn > saveCurr)
     {
         result.direction = -1;
@@ -241,10 +217,7 @@ ParameterOptimizationResult optimizeParameter(
         }
     }
 
-    // ========================================================================
     // Caso C: Sin movimiento
-    // ========================================================================
-
     if (result.direction == 0)
     {
         result.converged = true;
@@ -256,10 +229,7 @@ ParameterOptimizationResult optimizeParameter(
         }
     }
 
-    // ========================================================================
     // Resultado final
-    // ========================================================================
-
     result.value = context.weights(paramIndex);
     result.logLikelihood = saveCurr;
 
@@ -275,20 +245,11 @@ ParameterOptimizationResult optimizeParameter(
     return result;
 }
 
-
 // Implementacion de optimizeBeta() - SIGMAS
-
 BetaOptimizationResult optimizeBeta(
     LikelihoodContext &context,
     const BetaOptimizerConfig &config)
 {
-    /**
-     * Traduccion de SUBROUTINE SIGMAS
-     *
-     * Optimiza WEIGHT(NS+1) = beta (sigma-squared inverso)
-     * Paso inicial: XINC = 0.1
-     */
-
     // Indice de beta: ultima posicion del vector weights
     // Fortran: WEIGHT(NS+1) donde NS = numero de dimensiones
     const int betaIndex = static_cast<int>(context.weights.size()) - 1;
@@ -310,7 +271,6 @@ BetaOptimizationResult optimizeBeta(
 }
 
 // Implementacion de optimizeBetaSimple()
-
 double optimizeBetaSimple(LikelihoodContext &context)
 {
     BetaOptimizerConfig config = sigmasConfig();
@@ -322,20 +282,10 @@ double optimizeBetaSimple(LikelihoodContext &context)
 }
 
 // Implementacion de optimizeWeight2() - WINT
-
 WeightOptimizationResult optimizeWeight2(
     LikelihoodContext &context,
     const WeightOptimizerConfig &config)
 {
-    /**
-     * Traduccion de SUBROUTINE WINT 
-     *
-     * Optimiza WEIGHT(2) = peso de la segunda dimension (W2)
-     * Paso inicial: XINC = 0.01
-     *
-     * IMPORTANTE: Debe llamarse cuando NS >= 2
-     */
-
     // Verificar que el modelo tiene al menos 2 dimensiones
     const int numDimensions = static_cast<int>(context.weights.size()) - 1;
 
@@ -366,9 +316,7 @@ WeightOptimizationResult optimizeWeight2(
     return result;
 }
 
-
 // Implementacion de optimizeWeight2Simple() - WINT
-
 double optimizeWeight2Simple(LikelihoodContext &context)
 {
     WeightOptimizerConfig config = wintConfig();

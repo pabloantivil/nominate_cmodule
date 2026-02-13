@@ -1,5 +1,5 @@
 /**
- * @brief Implementacion del optimizador de parametros de roll calls (RCINT2).
+ * Implementacion del optimizador de parametros de roll calls (RCINT2).
  */
 
 #include "rollcall_optimizer.hpp"
@@ -8,12 +8,10 @@
 #include <stdexcept>
 #include <limits>
 
-// ============================================================================
 // Estructuras auxiliares internas
-// ============================================================================
 
 /**
- * @brief Estado de un punto en la busqueda lineal.
+ *  Estado de un punto en la busqueda lineal.
  * YGAMMA, YGMP, YLOG en Fortran.
  */
 struct SearchPoint
@@ -37,7 +35,7 @@ struct SearchPoint
 };
 
 /**
- * @brief Estado guardado para backtracking.
+ * Estado guardado para backtracking.
  * DZSAVE en Fortran.
  */
 struct SavedState
@@ -60,12 +58,11 @@ struct SavedState
     }
 };
 
-// ============================================================================
+
 // Funciones auxiliares
-// ============================================================================
 
 /**
- * @brief Protege spread contra valores muy pequenios.
+ *  Protege spread contra valores muy pequenios.
  */
 static void protectSpread(
     Eigen::VectorXd &spread,
@@ -82,7 +79,7 @@ static void protectSpread(
 }
 
 /**
- * @brief Verifica si spread tiene valores protegidos.
+ * Verifica si spread tiene valores protegidos.
  *
  * Retorna true si algun spread fue reseteado.
  */
@@ -104,11 +101,11 @@ static bool checkAndProtectSpread(
 }
 
 /**
- * @brief Calcula el tamanio de paso normalizado.
+ * Calcula el tamanio de paso normalizado.
  *
  * @param gradientNormSquared Norma al cuadrado del gradiente (SUMB)
  * @param stepUnit Unidad base (0.01)
- * @return Tamanio de paso
+ * @return Tamano de paso
  */
 static double computeStepSize(double gradientNormSquared, double stepUnit)
 {
@@ -120,7 +117,7 @@ static double computeStepSize(double gradientNormSquared, double stepUnit)
 }
 
 /**
- * @brief Verifica si todas las derivadas son esencialmente cero.
+ * Verifica si todas las derivadas son esencialmente cero.
  */
 static bool areDerivativesZero(
     const Eigen::VectorXd &derivatives,
@@ -137,7 +134,7 @@ static bool areDerivativesZero(
 }
 
 /**
- * @brief Proyecta midpoint a la superficie de la hiperesfera unitaria.
+ * Proyecta midpoint a la superficie de la hiperesfera unitaria.
  *
  * @param midpoint Vector a proyectar (modificado in-place)
  * @return true si se aplico proyeccion
@@ -154,7 +151,7 @@ static bool projectToUnitSphere(Eigen::VectorXd &midpoint)
 }
 
 /**
- * @brief Encuentra el indice del punto con mayor GMP.
+ * Encuentra el indice del punto con mayor GMP.
  *
  * Usa el patron de RSORT pero simplificado para encontrar el maximo.
  */
@@ -177,12 +174,10 @@ static int findBestPoint(const std::vector<SearchPoint> &points, int numValid)
     return bestIdx;
 }
 
-// ============================================================================
 // Fase A: Optimizacion de Spread (DYN)
-// ============================================================================
 
 /**
- * @brief Ejecuta una iteracion de optimizacion de spread.
+ *  Ejecuta una iteracion de optimizacion de spread.
  *
  * @return GMP alcanzado en esta iteracion
  */
@@ -280,7 +275,7 @@ static double optimizeSpreadIteration(
 }
 
 /**
- * @brief Ejecuta la fase completa de optimizacion de spread.
+ * Ejecuta la fase completa de optimizacion de spread.
  *
  */
 static int optimizeSpreadPhase(
@@ -337,12 +332,10 @@ static int optimizeSpreadPhase(
     return iterations;
 }
 
-// ============================================================================
 // Fase B: Optimizacion de Midpoint (ZMID)
-// ============================================================================
 
 /**
- * @brief Ejecuta una iteracion de optimizacion de midpoint.
+ * Ejecuta una iteracion de optimizacion de midpoint.
  *
  * Incluye restriccion de hiperesfera unitaria.
  */
@@ -432,7 +425,7 @@ static double optimizeMidpointIteration(
 }
 
 /**
- * @brief Ejecuta la fase completa de optimizacion de midpoint.
+ * Ejecuta la fase completa de optimizacion de midpoint.
  *
  */
 static int optimizeMidpointPhase(
@@ -484,10 +477,8 @@ static int optimizeMidpointPhase(
     return iterations;
 }
 
-// ============================================================================
-// Implementacion principal
-// ============================================================================
 
+// Implementacion principal
 RollCallOptimizationResult optimizeRollCall(
     const Eigen::MatrixXd &legislatorCoords,
     int rollCallIndex,
@@ -515,7 +506,7 @@ RollCallOptimizationResult optimizeRollCall(
     result.midpoint = initialMidpoint;
     result.spread = initialSpread;
 
-    // Bloque 2: Calcular log-likelihood inicial
+    // Calcular log-likelihood inicial
     auto initResult = computeRollCallDerivatives(
         legislatorCoords, rollCallIndex, result.midpoint, result.spread,
         votes, weights, normalCDF);
@@ -529,7 +520,7 @@ RollCallOptimizationResult optimizeRollCall(
         return result;
     }
 
-    // Bloque 3: Loop principal JJJJ (ciclos DYN + ZMID)
+    // Loop principal JJJJ (ciclos DYN + ZMID)
     int totalSpreadIter = 0;
     int totalMidpointIter = 0;
 

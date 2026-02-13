@@ -7,11 +7,11 @@
 #include <cmath>
 
 /**
- * @brief Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
+ * Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
  */
 
 /**
- * @brief Estructura para almacenar parametros de una votacion (roll call)
+ *  Estructura para almacenar parametros de una votacion (roll call)
  */
 struct RollCallParameters
 {
@@ -26,7 +26,7 @@ struct RollCallParameters
 };
 
 /**
- * @brief Matriz de votos con manejo de missing data.
+ * Matriz de votos con manejo de missing data.
  *
  * Equivalente a RCVOTE1 (voto observado) y RCVOTE9 (missing data mask) en Fortran
  */
@@ -34,14 +34,14 @@ class VoteMatrix
 {
 public:
     /**
-     * @brief Constructor con dimensiones
+     * Constructor con dimensiones
      * @param numLegislators Numero de legisladores
      * @param numRollCalls Numero de votaciones
      */
     VoteMatrix(size_t numLegislators, size_t numRollCalls);
 
     /**
-     * @brief Establece un voto.
+     * Establece un voto.
      * @param legislator Indice del legislador (0-based)
      * @param rollCall Indice de la votacion (0-based)
      * @param vote true=Si, false=No
@@ -50,13 +50,13 @@ public:
     void setVote(size_t legislator, size_t rollCall, bool vote, bool isMissing = false);
 
     /**
-     * @brief Obtiene el voto observado.
+     * Obtiene el voto observado.
      * @return true=Si, false=No
      */
     bool getVote(size_t legislator, size_t rollCall) const;
 
     /**
-     * @brief Verifica si el voto es missing data.
+     * Verifica si el voto es missing data.
      */
     bool isMissing(size_t legislator, size_t rollCall) const;
 
@@ -76,7 +76,7 @@ private:
 };
 
 /**
- * @brief Estadisticas de clasificacion del modelo.
+ * Estadisticas de clasificacion del modelo.
  *
  * Equivalente a KLASS, KLASSYY, etc. en Fortran.
  */
@@ -109,7 +109,7 @@ struct ClassificationStats
 };
 
 /**
- * @brief Resultado del calculo de log-likelihood.
+ * Resultado del calculo de log-likelihood.
  */
 struct LikelihoodResult
 {
@@ -121,7 +121,7 @@ struct LikelihoodResult
 };
 
 /**
- * @brief Calcula log-likelihood del modelo probit espacial.
+ * Calcula log-likelihood del modelo probit espacial.
  *
  * @param legislatorCoords XDATA: Coordenadas ideales de legisladores (numLeg x numDim)
  * @param rollCallParams Vector de parametros por votacion (ZMID, DYN)

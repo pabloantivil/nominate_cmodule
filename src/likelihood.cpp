@@ -6,13 +6,10 @@
 
 /**
  * @file likelihood.cpp
- * @brief Implementacion del calculo de log-likelihood para DW-NOMINATE.
+ *  Implementacion del calculo de log-likelihood para DW-NOMINATE.
  */
 
-// ============================================================================
 // Implementacion de VoteMatrix
-// ============================================================================
-
 VoteMatrix::VoteMatrix(size_t numLegislators, size_t numRollCalls)
     : numLegislators_(numLegislators),
       numRollCalls_(numRollCalls),
@@ -51,12 +48,9 @@ bool VoteMatrix::isMissing(size_t legislator, size_t rollCall) const
     return missingData_[index(legislator, rollCall)];
 }
 
-// ============================================================================
 // Funciones auxiliares para calculo de distancias
-// ============================================================================
-
 /**
- * @brief Calcula distancia cuadrada ponderada entre coordenada y midpoint+offset.
+ * Calcula distancia cuadrada ponderada entre coordenada y midpoint+offset.
  *
  * @param coord Coordenada del legislador
  * @param midpoint Punto medio de la votacion
@@ -92,7 +86,7 @@ static Eigen::VectorXd computeSquaredDistances(
 }
 
 /**
- * @brief Calcula utilidad ponderada (negativo de distancia ponderada).
+ * Calcula utilidad ponderada (negativo de distancia ponderada).
  *
  * @param squaredDistances Distancias cuadradas por dimension
  * @param weights Pesos dimensionales (solo primeras NS componentes)
@@ -113,10 +107,7 @@ static double computeUtility(
     return utility;
 }
 
-// ============================================================================
 // Implementacion de computeLogLikelihood
-// ============================================================================
-
 LikelihoodResult computeLogLikelihood(
     const Eigen::MatrixXd &legislatorCoords,
     const std::vector<RollCallParameters> &rollCallParams,

@@ -1,25 +1,23 @@
 /**
- * @brief Implementacion del calculo de derivadas para parametros de roll calls.
+ * Implementacion del calculo de derivadas para parametros de roll calls.
  */
 
 #include "rollcall_derivatives.hpp"
 #include <cmath>
 #include <stdexcept>
 
-// ============================================================================
 // Estructuras auxiliares para calculos intermedios
-// ============================================================================
 
 /**
- * @brief Almacena distancias cuadradas y lineales por dimension.
+ * Almacena distancias cuadradas y lineales por dimension.
  * DYES, DNO, DYES1, DNO1 en Fortran.
  */
 struct DimensionalDistances
 {
-    Eigen::VectorXd yesSquared;  // DYES: (x - zmid + dyn)^2
-    Eigen::VectorXd noSquared;   // DNO:  (x - zmid - dyn)^2
-    Eigen::VectorXd yesLinear;   // DYES1: (x - zmid + dyn)
-    Eigen::VectorXd noLinear;    // DNO1:  (x - zmid - dyn)
+    Eigen::VectorXd yesSquared; // DYES: (x - zmid + dyn)^2
+    Eigen::VectorXd noSquared;  // DNO:  (x - zmid - dyn)^2
+    Eigen::VectorXd yesLinear;  // DYES1: (x - zmid + dyn)
+    Eigen::VectorXd noLinear;   // DNO1:  (x - zmid - dyn)
 
     explicit DimensionalDistances(int numDim)
         : yesSquared(Eigen::VectorXd::Zero(numDim)),
@@ -31,18 +29,18 @@ struct DimensionalDistances
 };
 
 /**
- * @brief Almacena utilidades y terminos derivativos para un voto.
+ * Almacena utilidades y terminos derivativos para un voto.
  * DC, DB, DCC, DBB, DCC1, DBB1, XCC en Fortran.
  */
 struct VoteUtilities
 {
-    double DC;                      // Utilidad del voto correcto
-    double DB;                      // Utilidad del voto incorrecto
-    Eigen::VectorXd DCC;            // Distancias cuadradas para voto correcto
-    Eigen::VectorXd DBB;            // Distancias cuadradas para voto incorrecto
-    Eigen::VectorXd DCC1_weighted;  // Distancias lineales ponderadas (correcto)
-    Eigen::VectorXd DBB1_weighted;  // Distancias lineales ponderadas (incorrecto)
-    double XCC;                     // +1 si voto Si, -1 si voto No
+    double DC;                     // Utilidad del voto correcto
+    double DB;                     // Utilidad del voto incorrecto
+    Eigen::VectorXd DCC;           // Distancias cuadradas para voto correcto
+    Eigen::VectorXd DBB;           // Distancias cuadradas para voto incorrecto
+    Eigen::VectorXd DCC1_weighted; // Distancias lineales ponderadas (correcto)
+    Eigen::VectorXd DBB1_weighted; // Distancias lineales ponderadas (incorrecto)
+    double XCC;                    // +1 si voto Si, -1 si voto No
 
     explicit VoteUtilities(int numDim)
         : DC(0.0),
@@ -56,12 +54,10 @@ struct VoteUtilities
     }
 };
 
-// ============================================================================
 // Funciones auxiliares
-// ============================================================================
 
 /**
- * @brief Calcula distancias cuadradas y lineales para un legislador.
+ *  Calcula distancias cuadradas y lineales para un legislador.
  */
 static DimensionalDistances computeDistances(
     const Eigen::VectorXd &legislatorCoord,
@@ -88,7 +84,7 @@ static DimensionalDistances computeDistances(
 }
 
 /**
- * @brief Calcula utilidades y terminos derivativos para un voto.
+ * Calcula utilidades y terminos derivativos para un voto.
  *
  * @param dist Distancias precalculadas
  * @param weights Vector de pesos [w1,...,wNS,beta]
@@ -138,9 +134,9 @@ static VoteUtilities computeUtilities(
 }
 
 /**
- * @brief Actualiza estadisticas de clasificacion.
- *   Clasificacion correcta si |DC| <= |DB|
- *   Matriz de confusion basada en XCC y clasificacion
+ * Actualiza estadisticas de clasificacion.
+ * Clasificacion correcta si |DC| <= |DB|
+ * Matriz de confusion basada en XCC y clasificacion
  */
 static void updateClassificationStats(
     RollCallDerivativesResult &result,
@@ -159,32 +155,29 @@ static void updateClassificationStats(
     // Matriz de confusion
     if (correctlyClassified && XCC > 0.0)
     {
-        result.truePositives++;  // KLASSYY
+        result.truePositives++; // KLASSYY
     }
     if (!correctlyClassified && XCC > 0.0)
     {
-        result.falseNegatives++;  // KLASSNY
+        result.falseNegatives++; // KLASSNY
     }
     if (!correctlyClassified && XCC < 0.0)
     {
-        result.falsePositives++;  // KLASSYN
+        result.falsePositives++; // KLASSYN
     }
     if (correctlyClassified && XCC < 0.0)
     {
-        result.trueNegatives++;  // KLASSNN
+        result.trueNegatives++; // KLASSNN
     }
 
     // Clasificacion alternativa por signo de ZS
     if (ZS > 0.0)
     {
-        result.positiveZS++;  // KLASS2
+        result.positiveZS++; // KLASS2
     }
 }
 
-// ============================================================================
 // Implementacion principal
-// ============================================================================
-
 RollCallDerivativesResult computeRollCallDerivatives(
     const Eigen::MatrixXd &legislatorCoords,
     int rollCallIndex,
@@ -219,48 +212,48 @@ RollCallDerivativesResult computeRollCallDerivatives(
         throw std::out_of_range("Indice de roll call fuera de rango");
     }
 
-    // Inicializacion 
+    // Inicializacion
     RollCallDerivativesResult result(numDimensions);
 
     // Beta = WEIGHT(NS+1)
     const double beta = weights(numDimensions);
 
-    // Loop principal sobre legisladores 
+    // Loop principal sobre legisladores
     for (int i = 0; i < numLegislators; ++i)
     {
-        // Bloque 3: Calcular distancias
+        // Calcular distancias
         Eigen::VectorXd legCoord = legislatorCoords.row(i).transpose();
         DimensionalDistances dist = computeDistances(legCoord, midpoint, spread);
 
-        // Bloque 4: Verificar si hay dato valido 
+        // Verificar si hay dato valido
         if (votes.isMissing(i, rollCallIndex))
         {
-            continue;  // Saltar votos faltantes
+            continue; // Saltar votos faltantes
         }
 
-        result.totalVotes++;  // KTOT++
+        result.totalVotes++; // KTOT++
 
-        // Bloques 5-6: Calcular utilidades segun voto 
+        // Calcular utilidades segun voto
         bool votedYes = votes.getVote(i, rollCallIndex);
         VoteUtilities util = computeUtilities(dist, weights, votedYes);
 
-        // Bloque 7: Calcular ZS
+        // Calcular ZS
         // ZS = WEIGHT(NS+1) * (EXP(DC) - EXP(DB))
         double expDC = std::exp(util.DC);
         double expDB = std::exp(util.DB);
         double ZS = beta * (expDC - expDB);
 
-        // Bloque 8: Actualizar estadisticas de clasificacion
+        // Actualizar estadisticas de clasificacion
         updateClassificationStats(result, util.DC, util.DB, util.XCC, ZS);
 
-        // Bloque 9: Lookup en tabla CDF
+        // Lookup en tabla CDF
         double cdfValue = normalCDF.cdf(ZS);
         double logCdfValue = normalCDF.logCdf(ZS);
 
         // Acumular log-likelihood
         result.logLikelihood += logCdfValue;
 
-        // Bloque 10: Calcular derivadas 
+        // Calcular derivadas
         // ZGAUSS = exp(-(ZS*ZS)/2.0)
         double zgauss = std::exp(-(ZS * ZS) / 2.0);
 
@@ -278,12 +271,12 @@ RollCallDerivativesResult computeRollCallDerivatives(
             // ZDERV(K) = ZDERV(K) + (ZGAUSS/ZDISTF) *
             //            (-DCC1(K)*EXP(DC) + DBB1(K)*EXP(DB))
             result.midpointDerivatives(k) += ratio *
-                (-util.DCC1_weighted(k) * expDC + util.DBB1_weighted(k) * expDB);
+                                             (-util.DCC1_weighted(k) * expDC + util.DBB1_weighted(k) * expDB);
 
             // DDERV(K) = DDERV(K) + XCC * (ZGAUSS/ZDISTF) *
             //            (DCC1(K)*EXP(DC) + DBB1(K)*EXP(DB))
             result.spreadDerivatives(k) += util.XCC * ratio *
-                (util.DCC1_weighted(k) * expDC + util.DBB1_weighted(k) * expDB);
+                                           (util.DCC1_weighted(k) * expDC + util.DBB1_weighted(k) * expDB);
         }
     }
 

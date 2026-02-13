@@ -1,10 +1,6 @@
 /**
  * @file cutting_plane.cpp
- * @brief Implementacion de algoritmos de plano de corte (SEARCH).
- *
- * Subrutinas de plano de corte del codigo Fortran.
- *:
- * - SEARCH -> refineCuttingPlane()
+ * Implementacion de algoritmos de plano de corte (SEARCH/CUTPLANE).
  */
 
 #include "cutting_plane.hpp"
@@ -15,9 +11,8 @@
 
 namespace
 {
-
     /**
-     * @brief Proyecta legisladores sobre el vector normal.
+     * Proyecta legisladores sobre el vector normal.
      *
      * Calcula: projections[i] = sum_k(legislatorCoords[i,k] * normalVector[k])
      *
@@ -41,10 +36,7 @@ namespace
     }
 
     /**
-     * @brief Prepara votos para clasificacion (codigo 0 -> 9).
-     *
-     * @param votes Vector de votos originales
-     * @return Vector de votos con 0 convertido a 9
+     * Prepara votos para clasificacion (codigo 0 -> 9).
      */
     std::vector<int> prepareVotes(const std::vector<int> &votes)
     {
@@ -57,7 +49,7 @@ namespace
     }
 
     /**
-     * @brief Reordena votos segun indices de ordenamiento.
+     * Reordena votos segun indices de ordenamiento.
      *
      * @param votes Votos originales
      * @param sortedIndices Indices de ordenamiento
@@ -76,7 +68,7 @@ namespace
     }
 
     /**
-     * @brief Reordena proyecciones segun indices de ordenamiento.
+     * Reordena proyecciones segun indices de ordenamiento.
      *
      * @param projections Proyecciones originales
      * @param sortedIndices Indices de ordenamiento
@@ -95,10 +87,8 @@ namespace
     }
 
     /**
-     * @brief Calcula tamano de nube parcial.
-     *
-     * Formula: KASTRO = max(4*NS, min(4*errores, NP))
-     *
+     * Calcula tamano de nube parcial.
+     * 
      * @param totalErrors Numero total de errores
      * @param numDimensions Numero de dimensiones (NS)
      * @param numLegislators Numero de legisladores (NP)
@@ -115,7 +105,7 @@ namespace
     }
 
     /**
-     * @brief Construye nube completa de puntos (Y16MIDP).
+     * Construye nube completa de puntos (Y16MIDP).
      *
      * @param legislatorCoords Coordenadas de legisladores (NP x NS)
      * @param projections Proyecciones actuales
@@ -220,7 +210,7 @@ namespace
     }
 
     /**
-     * @brief Centra una nube de puntos (resta la media de cada dimension).
+     * Centra una nube de puntos (resta la media de cada dimension).
      *
      * @param cloud Matriz de puntos a centrar (modifica in-place)
      */
@@ -245,7 +235,7 @@ namespace
     }
 
     /**
-     * @brief Construye nube parcial de puntos (X16MIDP).
+     * Construye nube parcial de puntos (X16MIDP).
      *
      * @param fullCloud Nube completa (Y16MIDP)
      * @param wrongFlags Marcas de legisladores incorrectos
@@ -287,13 +277,8 @@ namespace
     }
 
     /**
-     * @brief Calcula la direccion de minima varianza usando SVD.
+     * Calcula la direccion de minima varianza usando SVD.
      *
-     * La SVD descompone la matriz: A = U * S * V^T
-     *
-     * El ultimo vector singular derecho (ultima columna de V) corresponde
-     * a la direccion de minima varianza, que es el nuevo vector normal.
-     * 
      * @param cloud Matriz de puntos centrada (M x NS)
      * @return Vector de direccion de minima varianza (NS)
      */
@@ -302,7 +287,6 @@ namespace
         const int ns = static_cast<int>(cloud.cols());
 
         // SVD de la nube de puntos
-        // Se usa JacobiSVD que es equivalente a DGESDD
         Eigen::JacobiSVD<Eigen::MatrixXd> svd(cloud, Eigen::ComputeThinV);
 
         // El ultimo vector singular derecho (columna NS-1 de V)
@@ -313,12 +297,7 @@ namespace
     }
 
     /**
-     * @brief Selecciona la mejor iteracion basado en numero de errores.
-     *
-     * Algoritmo:
-     * 1. Ordena iteraciones por numero de errores
-     * 2. Encuentra el indice con minimo errores
-     * 3. Si hay empates, el ordenamiento determina cual se selecciona
+     * Selecciona la mejor iteracion basado en numero de errores.
      *
      * @param states Vector de estados de iteracion
      * @return Indice de la mejor iteracion
@@ -359,8 +338,6 @@ namespace
             }
         }
 
-        // Fortran: KIN = JJ - 1, luego LLM(1) = LLM(KIN)
-        // Toma el ultimo elemento empatado antes del primero diferente
         bestIdx = sortedIndices[lastSame];
 
         return bestIdx;
@@ -368,10 +345,7 @@ namespace
 
 } // namespace anonimo
 
-// ============================================================================
 // Implementacion de funciones publicas
-// ============================================================================
-
 SearchResult refineCuttingPlane(
     const Eigen::MatrixXd &legislatorCoords,
     const std::vector<int> &votes,
@@ -401,7 +375,6 @@ SearchResult refineCuttingPlane(
     std::vector<int> preparedVotes = prepareVotes(votes);
 
     // Vector para almacenar estados de cada iteracion
-    // UUU, FV1, FV2, KKKCUT, LLLCUT, LLN
     std::vector<SearchIterationState> iterationStates;
     iterationStates.reserve(maxIterations);
 
@@ -414,7 +387,7 @@ SearchResult refineCuttingPlane(
         SearchIterationState state;
         state.normalVector = currentNormal;
 
-        // Proyeccion y clasificacion
+        // Proyeccion y clasificacion 
         // Proyectar legisladores sobre el vector normal actual
         std::vector<double> projections = computeProjections(legislatorCoords, currentNormal);
 
@@ -440,7 +413,7 @@ SearchResult refineCuttingPlane(
             0, 
             CuttingPointMode::NORMAL);
 
-        // Guardar resultados de iteracion
+        // Guardar resultados de iteracion 
         state.errorCount = static_cast<double>(cutResult.counts.totalErrors());
         state.cuttingPoint = cutResult.cuttingPoint;
         state.kcut = cutResult.polarity.lowSideVote;
@@ -503,7 +476,7 @@ SearchResult refineCuttingPlane(
         // Actualizar vector normal con direccion de minima varianza de nube completa
         currentNormal = computeMinVarianceDirection(fullCloud);
 
-        // SVD sobre nube parcial (lineas 3335-3343)
+        // SVD sobre nube parcial
         // Si iter > 25, usar la nube parcial en su lugar
         if (iter > 25)
         {
@@ -563,4 +536,334 @@ bool refineCuttingPlaneInPlace(
     outTotalClassified = result.totalClassified;
 
     return result.isPerfectClassification;
+}
+
+// CUTPLANE - Orquestador de clasificacion inicial de todas las votaciones
+namespace
+{
+    /**
+     * Proyecta un legislador sobre el vector normal.
+     *
+     * @param legislatorCoords Fila de coordenadas del legislador
+     * @param normalVector Vector normal
+     * @return Valor de la proyeccion escalar
+     */
+    inline double computeSingleProjection(
+        const Eigen::RowVectorXd &legislatorCoords,
+        const Eigen::VectorXd &normalVector)
+    {
+        return legislatorCoords.dot(normalVector);
+    }
+
+    /**
+     * Clasifica errores para una votacion y calcula estadisticas.
+     *
+     * @param projections Proyecciones finales de legisladores (XXY)
+     * @param votes Votos originales (LDATA(:,JX))
+     * @param cuttingPoint Punto de corte (WS(JX))
+     * @param polarity Polaridad (KCUT, LCUT)
+     * @param outLegislatorErrors Vector de errores por legislador (salida)
+     * @param outStats Estadisticas de proyecciones (salida)
+     * @return Numero total de errores (KSUM)
+     */
+    int computeClassificationErrors(
+        const std::vector<double> &projections,
+        const std::vector<int> &votes,
+        double cuttingPoint,
+        const CuttingPolarity &polarity,
+        std::vector<int> &outLegislatorErrors,
+        ProjectionStats &outStats)
+    {
+        const int np = static_cast<int>(projections.size());
+        outLegislatorErrors.assign(np, 0);
+
+        int ksum = 0;        // Total de errores
+        double sumYes = 0.0; // Suma de proyecciones de votantes "Si"
+        double sumNo = 0.0;  // Suma de proyecciones de votantes "No"
+        int ksumYes = 0;     // Contador de votantes "Si"
+        int ksumNo = 0;      // Contador de votantes "No"
+
+        int kcut = polarity.lowSideVote;
+        int lcut = polarity.highSideVote;
+
+        for (int i = 0; i < np; ++i)
+        {
+            int vote = votes[i];
+
+            // Ausentes no generan errores 
+            if (vote == 0 || vote == VoteCode::MISSING)
+            {
+                continue;
+            }
+
+            // Acumular estadisticas de proyecciones
+            if (vote == VoteCode::YES)
+            {
+                sumYes += projections[i];
+                ksumYes++;
+            }
+            else if (vote == VoteCode::NO)
+            {
+                sumNo += projections[i];
+                ksumNo++;
+            }
+
+            // Determinar si hay error de clasificacion
+            if (projections[i] < cuttingPoint)
+            {
+                if (vote != kcut)
+                {
+                    outLegislatorErrors[i] = 1;
+                    ksum++;
+                }
+            }
+            else if (projections[i] > cuttingPoint)
+            {
+                if (vote != lcut)
+                {
+                    outLegislatorErrors[i] = 1;
+                    ksum++;
+                }
+            }
+            // Si proyeccion == cuttingPoint exactamente, no hay error
+            // (comportamiento implicito del Fortran)
+        }
+
+        // Calcular medias
+        outStats.meanYes = (ksumYes > 0) ? sumYes / ksumYes : 0.0;
+        outStats.meanNo = (ksumNo > 0) ? sumNo / ksumNo : 0.0;
+        outStats.countYes = ksumYes;
+        outStats.countNo = ksumNo;
+
+        return ksum;
+    }
+
+} // namespace anonimo (CUTPLANE helpers)
+
+// ----------------------------------------------------------------------------
+// classifyRollCall - Clasificacion de una votacion individual
+// ----------------------------------------------------------------------------
+
+RollCallClassification classifyRollCall(
+    const Eigen::MatrixXd &legislatorCoords,
+    Eigen::VectorXd &normalVector,
+    const std::vector<int> &votes,
+    bool searchEnabled)
+{
+    const int np = static_cast<int>(legislatorCoords.rows());
+    const int ns = static_cast<int>(legislatorCoords.cols());
+
+    RollCallClassification result;
+    result.legislatorErrors.resize(np, 0);
+    result.projections.resize(np);
+    result.searchPerformed = false;
+
+    // Contar votos Si y No
+    int kyes = 0;
+    int kno = 0;
+    for (int i = 0; i < np; ++i)
+    {
+        if (votes[i] == VoteCode::YES)
+            kyes++;
+        else if (votes[i] == VoteCode::NO)
+            kno++;
+    }
+
+    // Calcular proyecciones sobre vector normal
+    std::vector<double> projections(np);
+    std::vector<int> preparedVotes(np);
+
+    for (int i = 0; i < np; ++i)
+    {
+        projections[i] = computeSingleProjection(
+            legislatorCoords.row(i), normalVector);
+
+        preparedVotes[i] = (votes[i] == 0) ? VoteCode::MISSING : votes[i];
+    }
+
+    // Ordenar proyecciones
+    std::vector<size_t> sortedIndices = argsort(projections);
+    std::vector<double> sortedProjections(np);
+    std::vector<int> sortedVotes(np);
+    std::vector<int> originalIndices(np);
+
+    for (int i = 0; i < np; ++i)
+    {
+        sortedProjections[i] = projections[sortedIndices[i]];
+        sortedVotes[i] = preparedVotes[sortedIndices[i]];
+        originalIndices[i] = static_cast<int>(sortedIndices[i]);
+    }
+
+    // Encontrar punto de corte optimo - JAN1PT 
+    CuttingPointResult cutResult = findCuttingPoint1D(
+        sortedProjections,
+        sortedVotes,
+        originalIndices,
+        legislatorCoords,
+        ns,
+        0, // rollCallIndex (no usado en modo NORMAL)
+        CuttingPointMode::NORMAL);
+
+    // Extraer resultados de JAN1PT
+    result.polarity = cutResult.polarity;
+    result.cuttingPoint = cutResult.cuttingPoint;
+    result.counts = cutResult.counts;
+
+    int jeh = cutResult.counts.errorsHigh;
+    int jel = cutResult.counts.errorsLow;
+    int jch = cutResult.counts.correctHigh;
+    int jcl = cutResult.counts.correctLow;
+
+    // Decision de busqueda adicional
+    if (jeh + jel == 0)
+    {
+        // Clasificacion perfecta: no se necesita SEARCH
+        result.totalClassified = jch + jeh + jcl + jel;
+        result.totalErrors = 0;
+        result.searchPerformed = false;
+    }
+    else if (!searchEnabled)
+    {
+        // Sin busqueda: usar resultado de JAN1PT tal cual
+        result.totalClassified = jch + jeh + jcl + jel;
+        result.totalErrors = jeh + jel;
+        result.searchPerformed = false;
+    }
+    // Busqueda de rotaciones - SEARCH 
+    else
+    {
+        // Solo ejecutar SEARCH si NS > 1
+        if (ns > 1)
+        {
+            SearchResult searchResult = refineCuttingPlane(
+                legislatorCoords,
+                votes,
+                normalVector,
+                cutResult.cuttingPoint,
+                cutResult.polarity,
+                25); // NCUT=25
+
+            // Actualizar vector normal (in-place, similar al Fortran)
+            normalVector = searchResult.normalVector;
+
+            // Usar resultados de SEARCH
+            result.polarity = searchResult.polarity;
+            result.cuttingPoint = searchResult.cuttingPoint;
+            result.counts = searchResult.counts;
+            result.totalErrors = searchResult.errors;
+            result.totalClassified = searchResult.totalClassified;
+            result.searchPerformed = true;
+
+            // Actualizar proyecciones con el nuevo vector normal
+            for (int i = 0; i < np; ++i)
+            {
+                projections[i] = computeSingleProjection(
+                    legislatorCoords.row(i), normalVector);
+            }
+        }
+        else
+        {
+            // NS=1: no hay SEARCH posible
+            result.totalClassified = jch + jeh + jcl + jel;
+            result.totalErrors = jeh + jel;
+            result.searchPerformed = false;
+        }
+    }
+
+    // Almacenar proyecciones finales
+    result.projections = projections;
+
+    // Calcular y almacenar errores de clasificacion
+    int errorCount = computeClassificationErrors(
+        result.projections,
+        votes,
+        result.cuttingPoint,
+        result.polarity,
+        result.legislatorErrors,
+        result.projStats);
+
+    // Actualizar conteo de errores
+    result.totalErrors = errorCount;
+
+    return result;
+}
+
+// findAllCuttingPlanes: Clasificacion inicial de todas las votaciones (CUTPLANE)
+
+CutplaneResult findAllCuttingPlanes(
+    const Eigen::MatrixXd &legislatorCoords,
+    Eigen::MatrixXd &normalVectors,
+    const Eigen::MatrixXi &voteMatrix,
+    bool searchEnabled)
+{
+    const int np = static_cast<int>(legislatorCoords.rows());
+    const int nrcall = static_cast<int>(voteMatrix.cols());
+    const int ns = static_cast<int>(legislatorCoords.cols());
+
+    // Inicializacion
+    CutplaneResult result;
+    result.numLegislators = np;
+    result.numRollCalls = nrcall;
+    result.numDimensions = ns;
+    result.totalClassified = 0;
+    result.totalErrors = 0;
+
+    result.polarities.resize(nrcall);
+    result.cuttingPoints.resize(nrcall);
+    result.rollCallResults.resize(nrcall);
+
+    int ktSave = 0;
+    int kttSave = 0;
+
+    // Loop principal sobre todas las votaciones
+    for (int jx = 0; jx < nrcall; ++jx)
+    {
+        // Extraer vector de votos para esta votacion
+        std::vector<int> votes(np);
+        for (int i = 0; i < np; ++i)
+        {
+            votes[i] = voteMatrix(i, jx);
+        }
+
+        // Extraer vector normal para esta votacion
+        Eigen::VectorXd normalVector = normalVectors.row(jx).transpose();
+
+        // Clasificar esta votacion
+        RollCallClassification rcResult = classifyRollCall(
+            legislatorCoords,
+            normalVector,
+            votes,
+            searchEnabled);
+
+        // Actualizar vector normal en la matriz (si SEARCH lo modifico)
+        normalVectors.row(jx) = normalVector.transpose();
+
+        // Almacenar polaridad
+        result.polarities[jx] = rcResult.polarity;
+        result.cuttingPoints[jx] = rcResult.cuttingPoint;
+
+        // Almacenar resultado completo
+        result.rollCallResults[jx] = rcResult;
+
+        ktSave += rcResult.totalClassified;
+        kttSave += rcResult.totalErrors;
+    }
+
+    // Finalizacion y estadisticas
+    result.totalClassified = ktSave;
+    result.totalErrors = kttSave;
+
+    if (result.totalClassified > 0)
+    {
+        result.errorRate = static_cast<double>(result.totalErrors) /
+                           static_cast<double>(result.totalClassified);
+        result.accuracy = 1.0 - result.errorRate;
+    }
+    else
+    {
+        result.errorRate = 0.0;
+        result.accuracy = 1.0;
+    }
+
+    return result;
 }

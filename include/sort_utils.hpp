@@ -1,13 +1,12 @@
 #ifndef SORT_UTILS_HPP
 #define SORT_UTILS_HPP
-
 #include <vector>
 #include <algorithm>
 #include <numeric>
 #include <Eigen/Dense>
 
 /**
- * @brief Utilidades de ordenamiento para DW-NOMINATE.
+ * Utilidades de ordenamiento para DW-NOMINATE.
  * RSORT implementa ordenamiento hibrido Quicksort + Insertion Sort que ordena valores
  * en orden ascendente mientras mantiene sincronizado un vector de indices
  *
@@ -15,21 +14,15 @@
  */
 
 /**
- * @brief Ordena valores y retorna indices de la permutacion (argsort)
+ * Ordena valores y retorna indices de la permutacion (argsort)
  *
  * Equivalente funcional a RSORT(A, LA, IR) del codigo Fortran
- *
- * Comportamiento:
- * - Ordena en orden ASCENDENTE (minimo primero, maximo ultimo)
- * - Retorna vector de indices que describe la permutacion
- * - indices[0] = posicion original del minimo
- * - indices[n-1] = posicion original del maximo
  *
  * @param values Vector de valores a ordenar (no se modifica)
  * @return Vector de indices ordenados [0, n-1] tal que values[indices[i]] esta ordenado
  */
 template <typename T>
-std::vector<size_t> argsort(const std::vector<T > &values)
+std::vector<size_t> argsort(const std::vector<T> &values)
 {
     const size_t n = values.size();
     std::vector<size_t> indices(n);
@@ -46,8 +39,7 @@ std::vector<size_t> argsort(const std::vector<T > &values)
 }
 
 /**
- * @brief Ordena valores de Eigen::VectorXd y retorna indices.
- *
+ * Ordena valores de Eigen::VectorXd y retorna indices.
  * Sobrecarga para vectores de Eigen.
  *
  * @param values Eigen::VectorXd con valores a ordenar
@@ -68,10 +60,7 @@ inline std::vector<size_t> argsort(const Eigen::VectorXd &values)
 }
 
 /**
- * @brief Ordena valores en orden DESCENDENTE y retorna indices.
- *
- * Variante para busquedas donde se requiere directamente el maximo en la primera posicion.
- * Util si se prefiere indices[0] = posicion del maximo en lugar de indices[n-1]
+ * Ordena valores en orden DESCENDENTE y retorna indices.
  *
  * @param values Vector de valores a ordenar
  * @return Vector de indices en orden descendente
@@ -93,7 +82,7 @@ std::vector<size_t> argsort_descending(const std::vector<T> &values)
 }
 
 /**
- * @brief Ordena valores de Eigen en orden descendente.
+ * Ordena valores de Eigen en orden descendente.
  */
 inline std::vector<size_t> argsort_descending(const Eigen::VectorXd &values)
 {
@@ -110,7 +99,7 @@ inline std::vector<size_t> argsort_descending(const Eigen::VectorXd &values)
 }
 
 /**
- * @brief Aplica una permutacion a un vector usando indices.
+ * Aplica una permutacion a un vector usando indices.
  *
  * Reordena los elementos de un vector segun la permutacion especificada.
  * Util si se necesita modificar el vector original
@@ -131,7 +120,7 @@ void applyPermutation(std::vector<T> &values, const std::vector<size_t> &indices
 }
 
 /**
- * @brief Aplica permutacion a Eigen::VectorXd.
+ * Aplica permutacion a Eigen::VectorXd.
  */
 inline void applyPermutation(Eigen::VectorXd &values, const std::vector<size_t> &indices)
 {
@@ -144,7 +133,7 @@ inline void applyPermutation(Eigen::VectorXd &values, const std::vector<size_t> 
 }
 
 /**
- * @brief Interfaz compatible con RSORT de Fortran (modifica in-place).
+ * Interfaz compatible con RSORT de Fortran (modifica in-place).
  *
  * @param values Vector de valores (se modifica in-place)
  * @param indices Vector de indices (se modifica, 1-based)
