@@ -478,6 +478,37 @@ private:
      * @brief Log de progreso (si verbose esta activo).
      */
     void log(const std::string &message) const;
-};
 
+    // METODOS AUXILIARES DE INTEGRACION CON OPTIMIZADORES
+    /**
+     * @brief Construye vector de RollCallParameters desde estado interno.
+     * @return Vector de parametros de roll calls
+     */
+    std::vector<RollCallParameters> buildRollCallParams() const;
+
+    /**
+     * @brief Construye LegislatorPeriodInfo para un legislador.
+     *
+     * Convierte LegislatorPresence al formato esperado por optimizeLegislator.
+     * @param uniqueId ID unico del legislador
+     * @param presence Informacion de presencia en congresos
+     * @return Informacion de periodos para el optimizador
+     */
+    LegislatorPeriodInfo buildLegislatorPeriodInfo(
+        int uniqueId,
+        const LegislatorPresence &presence) const;
+
+    /**
+     * @brief Reconstruye coordenadas de legislador desde coeficientes temporales.
+     *
+     * Para un legislador con presencia en multiples congresos, reconstruye
+     * las coordenadas XDATA usando los coeficientes XBETA optimizados.
+     *
+     * @param presence Informacion de presencia
+     * @param coefficients Coeficientes temporales optimizados
+     */
+    void reconstructLegislatorCoords(
+        const LegislatorPresence &presence,
+        const TemporalCoefficients &coefficients);
+};
 #endif // DWNOMINATE_HPP

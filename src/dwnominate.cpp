@@ -1,7 +1,6 @@
 /**
  * @file dwnominate.cpp
  * @brief Implementacion de la clase DWNominate.
- * Contiene la implementacion del orquestador principal del algoritmo DW-NOMINATE
  */
 
 #include "dwnominate.hpp"
@@ -19,8 +18,6 @@ DWNominate::DWNominate(const DWNominateConfig &config, const DWNominateInput &in
     // call init_zdf
     initializeCDF();
 
-    // Extraccion de parametros
-    // NS, NMODEL, NFIRST, NLAST, IHAPPY1, IHAPPY2 ya estan en config_
     // WEIGHT(1:(NS+1)) = WEIGHTSIN
     int ns = config_.numDimensions;
     weights_ = input.initialWeights;
@@ -74,7 +71,6 @@ DWNominate::DWNominate(const DWNominateConfig &config, const DWNominateInput &in
 
 /**
  * Inicializa la tabla CDF.
- * La clase NormalCDF ya implementa esta funcionalidad en su constructor, por lo que aqui no es necesario hacer nada adicional.
  */
 void DWNominate::initializeCDF()
 {
@@ -83,7 +79,9 @@ void DWNominate::initializeCDF()
     // La tabla ZDF se precomputa automaticamente.
 }
 
-// Carga metadata de congresos y calcula offsets.
+/**
+ * Carga metadata de congresos y calcula offsets.
+ */
 void DWNominate::loadCongressMetadata(const DWNominateInput &input)
 {
     int numCongresses = config_.lastCongress - config_.firstCongress + 1;
@@ -162,7 +160,6 @@ void DWNominate::loadRollCalls(const DWNominateInput &input)
         int krctot = kyes + kno;
         int krcmin = std::min(kyes, kno);
         double xmarg = (krctot > 0) ? static_cast<double>(krcmin) / krctot : 0.0;
-        
         // Nota: RCBAD=.TRUE. significa roll call VALIDO en Fortran
         validRollCalls_[i] = (xmarg >= config_.marginThreshold);
     }
@@ -201,20 +198,9 @@ void DWNominate::loadLegislators(const DWNominateInput &input)
     }
 }
 
-// =============================================================================
 // METODO PRINCIPAL run()
-// =============================================================================
-
 /**
  * Ejecuta el algoritmo completo.
- * Fortran:
- *   DO 9999 IHAPPY=IHAPPY1,IHAPPY2
- *      CALL WINT(...)
- *      CALL SIGMAS(...)
- *      [Roll Call Phase]
- *      [Legislator Phase]
- *   9999 CONTINUE
- *   WEIGHTSOUT = WEIGHT(1:(NS+1))
  */
 DWNominateResult DWNominate::run()
 {
@@ -256,7 +242,6 @@ DWNominateResult DWNominate::run()
     // Fin bucle 9999
 
     // Preparar resultados
-    //   WEIGHTSOUT = WEIGHT(1:(NOMSTARTIN(1) + 1))
     result.legislatorCoords = legislatorCoords_;
     result.rollCallMidpoints = rollCallMidpoints_;
     result.rollCallSpreads = rollCallSpreads_;
@@ -314,22 +299,94 @@ DWNominateResult DWNominate::run()
 }
 
 // FASE DE PESOS (WINT)
-
 /**
  * Esta fase solo se ejecuta si NS >= 2.
  * Optimiza WEIGHT(2:NS) manteniendo WEIGHT(1)=1.0.
  */
 void DWNominate::executeWeightPhase()
 {
-    log("  [WINT] Fase de pesos pendiente de integracion");
+    int ns = config_.numDimensions;
+
+    // Verificacion de seguridad (ya se verifica en run(), pero doble check)
+    if (ns < 2)
+    {
+        return;
+    }
+
+    // Construir vector de parametros de roll calls
+    std::vector<RollCallParameters> rollCallParams = buildRollCallParams();
+
+    // Crear contexto de likelihood
+    // LikelihoodContext toma weights_ por referencia, permitiendo que
+    // optimizeWeight2 modifique weights_ directamente
+    LikelihoodContext context(
+        legislatorCoords_,
+        rollCallParams,
+        votes_,
+        weights_,
+        normalCDF_,
+        validRollCalls_);
+
+    // Configuracion de WINT (paso = 0.01)
+    WeightOptimizerConfig config = wintConfig();
+    config.verbose = config_.verbose;
+
+    // Ejecutar optimizacion
+    WeightOptimizationResult result = optimizeWeight2(context, config);
+
+    // weights_ ya fue modificado in-place por optimizeWeight2 a traves del context
+    // Actualizar log-likelihood actual
+    currentLogLikelihood_ = result.logLikelihood;
+
+    if (config_.verbose)
+    {
+        log("  [WINT] W2: " + std::to_string(result.initialValue) +
+            " -> " + std::to_string(result.value) +
+            ", LL: " + std::to_string(result.logLikelihood) +
+            ", iters: " + std::to_string(result.iterations));
+    }
 }
 
 // FASE DE BETA (SIGMAS)
-// Ejecuta fase de optimizacion de beta (SIGMAS).
-// Optimiza WEIGHT(NS+1) = beta mediante busqueda grid.
+
+/**
+ * Ejecuta fase de optimizacion de beta (SIGMAS).
+ * Optimiza WEIGHT(NS+1) = beta mediante busqueda grid.
+ */
 void DWNominate::executeBetaPhase()
 {
-    log("  [SIGMAS] Fase de beta pendiente de integracion");
+    // Construir vector de parametros de roll calls
+    std::vector<RollCallParameters> rollCallParams = buildRollCallParams();
+
+    // Crear contexto de likelihood
+    // LikelihoodContext toma weights_ por referencia, permitiendo que
+    // optimizeBeta modifique weights_ directamente
+    LikelihoodContext context(
+        legislatorCoords_,
+        rollCallParams,
+        votes_,
+        weights_,
+        normalCDF_,
+        validRollCalls_);
+
+    // Configuracion de SIGMAS (paso = 0.1)
+    BetaOptimizerConfig config = sigmasConfig();
+    config.verbose = config_.verbose;
+
+    // Ejecutar optimizacion
+    BetaOptimizationResult result = optimizeBeta(context, config);
+
+    // weights_ ya fue modificado in-place por optimizeBeta a traves del context
+    // Actualizar log-likelihood actual
+    currentLogLikelihood_ = result.logLikelihood;
+
+    if (config_.verbose)
+    {
+        log("  [SIGMAS] Beta: " + std::to_string(result.initialValue) +
+            " -> " + std::to_string(result.value) +
+            ", LL: " + std::to_string(result.logLikelihood) +
+            ", iters: " + std::to_string(result.iterations));
+    }
 }
 
 // FASE DE ROLL CALLS
@@ -490,16 +547,32 @@ void DWNominate::processRollCall(
     rollCallPolarity_[globalRollCallIndex] = polarity;
 
     // PROLLC2 + RCINT2: Optimizar parametros del roll call
-    // TODO: Integrar con rollcall_optimizer.hpp
-    // Por ahora, guardamos los valores calculados
+    // Configuracion del optimizador de roll calls
+    RollCallOptimizerConfig rcConfig;
+    rcConfig.numOuterIterations = 5;
+    rcConfig.numInnerIterations = 10;
+    rcConfig.numSearchPoints = 25;
 
-    // Guardar resultados
-    rollCallMidpoints_.row(globalRollCallIndex) = oldz.transpose();
-    rollCallSpreads_.row(globalRollCallIndex) = oldd.transpose();
+    // Ejecutar optimizacion
+    // Fortran: CALL RCINT2(...)
+    RollCallOptimizationResult rcResult = optimizeRollCall(
+        legislatorCoords_,
+        globalRollCallIndex,
+        oldz,
+        oldd,
+        votes_,
+        weights_,
+        normalCDF_,
+        rcConfig);
 
-    // Actualizar contadores
-    totalVotes += kyes + kno;
-    classificationAfter += std::max(kyes, kno); // Aproximacion temporal
+    // Actualizar parametros optimizados en el estado interno
+    rollCallMidpoints_.row(globalRollCallIndex) = rcResult.midpoint.transpose();
+    rollCallSpreads_.row(globalRollCallIndex) = rcResult.spread.transpose();
+
+    // Actualizar contadores de clasificacion
+    totalVotes += rcResult.totalVotes;
+    classificationBefore += rcResult.totalVotes; // Aproximacion para antes
+    classificationAfter += rcResult.correctClassified;
 }
 
 // Prepara datos para un roll call.
@@ -598,7 +671,7 @@ int DWNominate::prepareRollCallData(
         projections[i] = coords(i, 0); // Primera dimension para ordenar
     }
 
-    // Ordenar por primera dimension (call rsort)
+    // Ordenar por primera dimension
     std::vector<size_t> rawIndices = argsort(projections);
     sortedIndices.resize(rawIndices.size());
     for (size_t i = 0; i < rawIndices.size(); ++i)
@@ -628,7 +701,7 @@ void DWNominate::applyJan11pt(
     double &accuracy1,
     double &accuracy2)
 {
-    // Probar ambas polaridades y seleccionar la mejor
+    // Probar ambas polaridades
     CuttingPolarity pol1(VoteCode::YES, VoteCode::NO);
     CuttingPolarity pol2(VoteCode::NO, VoteCode::YES);
 
@@ -656,7 +729,6 @@ void DWNominate::applyJan11pt(
     }
 }
 
-
 // Aplica CUTPLANE para NS>1.
 void DWNominate::applyCutplane(
     int numVoters,
@@ -673,12 +745,10 @@ void DWNominate::applyCutplane(
     normalVector(0) = 1.0;
 
     // Llamar a classifyRollCall de cutting_plane.hpp
-    // Llamado a CUTPLANE para un solo roll call
     bool searchEnabled = true; // IFIXX=1
     RollCallClassification result = classifyRollCall(
         coords, normalVector, voteCodes, searchEnabled);
 
-    // Logica para primera iteracion
     // Ajustar orientacion del vector normal
     Eigen::VectorXd zvec = normalVector;
     double ws = result.cuttingPoint;
@@ -746,7 +816,6 @@ void DWNominate::executeLegislatorPhase()
             }
         }
 
-        // IF(KK.EQ.0)GO TO 48
         if (congressCount == 0)
         {
             continue;
@@ -769,38 +838,94 @@ void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &prese
 {
     int ns = config_.numDimensions;
 
-    // Por ahora, solo actualizamos las varianzas con valores por defecto
-    // Fortran lineas 522-546
-    int congressCount = presence.getNumCongresses();
+    // Construir LegislatorPeriodInfo desde presence
+    LegislatorPeriodInfo periodInfo = buildLegislatorPeriodInfo(uniqueId, presence);
 
-    if (config_.temporalModel == 0)
+    // Determinar modelo temporal basado en numero de congresos
+    int congressCount = presence.getNumCongresses();
+    TemporalModel maxModel = TemporalModel::Constant;
+    if (config_.temporalModel >= 1 && congressCount >= 5)
     {
-        // NMODEL=0: Modelo constante
-        legislatorVariances_(uniqueId, 0) = 0.0; // OUTX0(1,1)
+        maxModel = TemporalModel::Linear;
+    }
+    if (config_.temporalModel >= 2 && congressCount >= 6)
+    {
+        maxModel = TemporalModel::Quadratic;
+    }
+    if (config_.temporalModel >= 3 && congressCount >= 7)
+    {
+        maxModel = TemporalModel::Cubic;
+    }
+
+    // Configuracion del optimizador
+    LegislatorOptimizerConfig legConfig;
+    legConfig.maxIterations = 10;
+    legConfig.numSearchPointsConst = 25;
+    legConfig.numSearchPointsTemporal = 10;
+
+    // Ejecutar optimizacion
+    LegislatorOptimizationResult legResult = optimizeLegislator(
+        uniqueId,
+        periodInfo,
+        legislatorCoords_,
+        rollCallMidpoints_,
+        rollCallSpreads_,
+        votes_,
+        validRollCalls_,
+        weights_,
+        normalCDF_,
+        maxModel,
+        config_.firstCongress,
+        config_.lastCongress,
+        legConfig);
+
+    // Reconstruir coordenadas en legislatorCoords_ desde coeficientes optimizados
+    reconstructLegislatorCoords(presence, legResult.coefficients);
+
+    // Actualizar varianzas
+
+    if (config_.temporalModel == 0 || congressCount < 5)
+    {
+        // Modelo constante: XVAR(id, 1:6) desde OUTX0
+        if (ns >= 1)
+        {
+            legislatorVariances_(uniqueId, 0) = legResult.covariance0(0, 0); // Var(X1)
+        }
+        if (ns >= 2)
+        {
+            legislatorVariances_(uniqueId, 3) = legResult.covariance0(1, 1); // Var(X2)
+        }
+        // Los terminos cruzados son 0 para modelo constante
         legislatorVariances_(uniqueId, 1) = 0.0;
         legislatorVariances_(uniqueId, 2) = 0.0;
-        legislatorVariances_(uniqueId, 3) = 0.0; // OUTX0(2,2)
         legislatorVariances_(uniqueId, 4) = 0.0;
         legislatorVariances_(uniqueId, 5) = 0.0;
     }
-    else if (config_.temporalModel == 1)
+    else
     {
-        // NMODEL=1: Modelo lineal
-        if (congressCount < 5)
+        // Modelo lineal o superior: XVAR desde OUTX1
+        if (ns >= 1 && legResult.covariance1.rows() >= 2 * ns)
         {
-            // Usar modelo constante si pocos congresos
-            legislatorVariances_(uniqueId, 0) = 0.0;
-            legislatorVariances_(uniqueId, 3) = 0.0;
+            legislatorVariances_(uniqueId, 0) = legResult.covariance1(0, 0);
+            legislatorVariances_(uniqueId, 1) = legResult.covariance1(ns, ns);
+            legislatorVariances_(uniqueId, 2) = legResult.covariance1(0, ns);
         }
-        else
+        if (ns >= 2 && legResult.covariance1.rows() >= 2 * ns)
         {
-            // Usar modelo lineal
-            legislatorVariances_(uniqueId, 0) = 0.0; // OUTX1(1,1)
-            legislatorVariances_(uniqueId, 1) = 0.0; // OUTX1(3,3)
-            legislatorVariances_(uniqueId, 2) = 0.0; // OUTX1(1,3)
-            legislatorVariances_(uniqueId, 3) = 0.0; // OUTX1(2,2)
-            legislatorVariances_(uniqueId, 4) = 0.0; // OUTX1(4,4)
-            legislatorVariances_(uniqueId, 5) = 0.0; // OUTX1(2,4)
+            legislatorVariances_(uniqueId, 3) = legResult.covariance1(1, 1);
+            legislatorVariances_(uniqueId, 4) = legResult.covariance1(ns + 1, ns + 1);
+            legislatorVariances_(uniqueId, 5) = legResult.covariance1(1, ns + 1);
+        }
+    }
+
+    // Actualizar estadisticas por legislador
+    for (const auto &pair : presence.congressToDataIndex)
+    {
+        int dataIndex = pair.second;
+        if (dataIndex >= 0 && dataIndex < legislatorLogLikelihood_.rows())
+        {
+            legislatorLogLikelihood_(dataIndex, 0) = legResult.logLikelihood0;
+            legislatorVoteCounts_(dataIndex, 0) = legResult.totalVotes;
         }
     }
 }
@@ -808,8 +933,6 @@ void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &prese
 // METODOS DE UTILIDAD
 /**
  * Calcula log-likelihood global (PLOG).
- *
- * USA computeLogLikelihood de likelihood.hpp
  */
 double DWNominate::computeLogLikelihood()
 {
@@ -882,5 +1005,144 @@ void DWNominate::log(const std::string &message) const
     if (config_.verbose)
     {
         std::cout << message << std::endl;
+    }
+}
+
+// METODOS AUXILIARES DE INTEGRACION CON OPTIMIZADORES
+/**
+ * Construye vector de RollCallParameters desde estado interno.
+ *
+ * @return Vector de parametros de roll calls
+ */
+std::vector<RollCallParameters> DWNominate::buildRollCallParams() const
+{
+    std::vector<RollCallParameters> params;
+    int numRollCalls = static_cast<int>(rollCallMidpoints_.rows());
+    int ns = config_.numDimensions;
+
+    params.reserve(numRollCalls);
+    for (int i = 0; i < numRollCalls; ++i)
+    {
+        RollCallParameters rc(ns);
+        rc.midpoint = rollCallMidpoints_.row(i).transpose();
+        rc.spread = rollCallSpreads_.row(i).transpose();
+        params.push_back(rc);
+    }
+
+    return params;
+}
+
+/**
+ * Construye LegislatorPeriodInfo para un legislador.
+ *
+ * @param uniqueId ID unico del legislador
+ * @param presence Informacion de presencia en congresos
+ * @return Informacion de periodos para el optimizador
+ */
+LegislatorPeriodInfo DWNominate::buildLegislatorPeriodInfo(
+    int uniqueId,
+    const LegislatorPresence &presence) const
+{
+    // Determinar numero total de periodos
+    int numPeriods = config_.lastCongress - config_.firstCongress + 1;
+    LegislatorPeriodInfo info(numPeriods);
+
+    // Llenar informacion para cada congreso donde sirvio el legislador
+    for (const auto &pair : presence.congressToDataIndex)
+    {
+        int congress = pair.first;
+        int dataIndex = pair.second;
+
+        // Verificar que el congreso esta en el rango
+        if (congress < config_.firstCongress || congress > config_.lastCongress)
+        {
+            continue;
+        }
+
+        // Convertir congreso a indice de periodo (0-based relativo a firstCongress)
+        int periodIndex = congress - config_.firstCongress;
+
+        // Obtener numero de roll calls para este congreso
+        int numRollCalls = 0;
+        for (const auto &cInfo : congressInfo_)
+        {
+            if (cInfo.index == congress)
+            {
+                numRollCalls = cInfo.numRollCalls;
+                break;
+            }
+        }
+
+        // Marcar como servido
+        info.markServed(periodIndex, dataIndex, numRollCalls);
+    }
+
+    return info;
+}
+
+/**
+ * Reconstruye coordenadas de legislador desde coeficientes temporales.
+ * @param presence Informacion de presencia
+ * @param coefficients Coeficientes temporales optimizados
+ */
+void DWNominate::reconstructLegislatorCoords(
+    const LegislatorPresence &presence,
+    const TemporalCoefficients &coefficients)
+{
+    int ns = config_.numDimensions;
+
+    // Obtener lista de periodos servidos
+    std::vector<int> servedPeriods;
+    for (const auto &pair : presence.congressToDataIndex)
+    {
+        int congress = pair.first;
+        if (congress >= config_.firstCongress && congress <= config_.lastCongress)
+        {
+            servedPeriods.push_back(congress);
+        }
+    }
+
+    int kk = static_cast<int>(servedPeriods.size());
+    if (kk == 0)
+    {
+        return;
+    }
+
+    // Calcular incremento temporal (igual que en buildLegendreTimeTrends)
+    double xinc = 0.0;
+    if (kk > 1)
+    {
+        xinc = 2.0 / (static_cast<double>(kk) - 1.0);
+    }
+
+    // Reconstruir coordenadas para cada periodo
+    int periodIdx = 0;
+    for (int congress : servedPeriods)
+    {
+        int dataIndex = presence.getDataIndex(congress);
+        if (dataIndex < 0)
+        {
+            periodIdx++;
+            continue;
+        }
+
+        // Calcular tiempo normalizado t en [-1, 1]
+        double xtime = -1.0 + static_cast<double>(periodIdx) * xinc;
+
+        // Calcular polinomios de Legendre
+        double p0 = 1.0;
+        double p1 = xtime;
+        double p2 = (3.0 * xtime * xtime - 1.0) / 2.0;
+        double p3 = (5.0 * xtime * xtime * xtime - 3.0 * xtime) / 2.0;
+
+        // Reconstruir coordenadas para cada dimension
+        for (int k = 0; k < ns; ++k)
+        {
+            double coord = coefficients(0, k) * p0 + coefficients(1, k) * p1 + coefficients(2, k) * p2 + coefficients(3, k) * p3;
+            // Actualizar coordenada en la matriz de legisladores
+            legislatorCoords_(dataIndex, k) = coord;
+        }
+
+        periodIdx++;
     }
 }
