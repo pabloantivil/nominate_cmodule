@@ -5,10 +5,52 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <cmath>
+#include <array>
 
 /**
  * Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
+ *
+ * OPTIMIZACIONES IMPLEMENTADAS:
+ * - Correccion A: Vectores de tamano fijo (stack allocation)
+ * - Correccion B: Buffers de trabajo pre-allocated
+ * - Correccion C: Pesos al cuadrado cacheados
+ * - Correccion E: Calculos inline de distancia
  */
+
+// ===========================================================================
+// CORRECCION A: Constante maxima de dimensiones para arrays en stack
+// ===========================================================================
+constexpr int MAX_DIMENSIONS = 4; // DW-NOMINATE tipicamente usa 1-2 dimensiones
+
+/**
+ * Buffer de trabajo pre-allocated para evitar allocations dinamicas.
+ * CORRECCION B: Se reutiliza en cada llamada a computeLogLikelihood.
+ */
+struct LikelihoodWorkBuffer
+{
+    // CORRECCION A: Arrays de tamano fijo en stack
+    std::array<double, MAX_DIMENSIONS> distYes;
+    std::array<double, MAX_DIMENSIONS> distNo;
+    std::array<double, MAX_DIMENSIONS> weightsSquared; // CORRECCION C: Pesos cacheados
+    int numDimensions;
+
+    LikelihoodWorkBuffer() : numDimensions(0)
+    {
+        distYes.fill(0.0);
+        distNo.fill(0.0);
+        weightsSquared.fill(0.0);
+    }
+
+    // CORRECCION C: Pre-calcular pesos al cuadrado
+    void cacheWeights(const Eigen::VectorXd &weights, int ns)
+    {
+        numDimensions = ns;
+        for (int k = 0; k < ns && k < MAX_DIMENSIONS; ++k)
+        {
+            weightsSquared[k] = weights(k) * weights(k);
+        }
+    }
+};
 
 /**
  *  Estructura para almacenar parametros de una votacion (roll call)
@@ -60,8 +102,28 @@ public:
      */
     bool isMissing(size_t legislator, size_t rollCall) const;
 
+    /**
+     * VERSIONES SIN BOUNDS CHECKING - OPTIMIZADAS PARA HOT LOOPS
+     * Solo usar cuando los índices están pre-validados.
+     */
+    inline bool getVoteUnsafe(size_t legislator, size_t rollCall) const
+    {
+        return votes_[legislator * numRollCalls_ + rollCall];
+    }
+
+    inline bool isMissingUnsafe(size_t legislator, size_t rollCall) const
+    {
+        return missingData_[legislator * numRollCalls_ + rollCall];
+    }
+
     size_t getNumLegislators() const { return numLegislators_; }
     size_t getNumRollCalls() const { return numRollCalls_; }
+
+    /**
+     * Acceso directo a datos para optimización avanzada.
+     */
+    const std::vector<bool> &getVotesRaw() const { return votes_; }
+    const std::vector<bool> &getMissingRaw() const { return missingData_; }
 
 private:
     size_t numLegislators_;
@@ -139,5 +201,33 @@ LikelihoodResult computeLogLikelihood(
     const Eigen::VectorXd &weights,
     const NormalCDF &normalCDF,
     const std::vector<bool> &validRollCalls);
+
+// ===========================================================================
+// VERSION OPTIMIZADA - CORRECCIONES A, B, C, E
+// ===========================================================================
+
+/**
+ * Calcula log-likelihood usando optimizaciones estructurales.
+ *
+ * OPTIMIZADO: Elimina allocations dinamicas en hot loops.
+ * Usa arrays de tamano fijo y pesos pre-cacheados.
+ *
+ * @param legislatorCoords Coordenadas de legisladores
+ * @param rollCallParams Parametros de roll calls
+ * @param votes Matriz de votos
+ * @param weights Pesos dimensionales [w1..wNS, beta]
+ * @param normalCDF Tabla CDF
+ * @param validRollCalls Mascara de roll calls validos
+ * @param buffer Buffer de trabajo pre-allocated (reutilizable)
+ * @return Resultado con log-likelihood y estadisticas
+ */
+LikelihoodResult computeLogLikelihoodOptimized(
+    const Eigen::MatrixXd &legislatorCoords,
+    const std::vector<RollCallParameters> &rollCallParams,
+    const VoteMatrix &votes,
+    const Eigen::VectorXd &weights,
+    const NormalCDF &normalCDF,
+    const std::vector<bool> &validRollCalls,
+    LikelihoodWorkBuffer &buffer);
 
 #endif // LIKELIHOOD_HPP

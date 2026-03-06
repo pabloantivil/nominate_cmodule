@@ -8,6 +8,10 @@
  * Diferencias:
  * - SIGMAS: optimiza WEIGHT(NS+1) con paso 0.1
  * - WINT: optimiza WEIGHT(2) con paso 0.01
+ *
+ * OPTIMIZACIONES IMPLEMENTADAS:
+ * - Buffer de trabajo reutilizable para evaluaciones de likelihood
+ * - Evita allocations dinamicas en hot loops
  */
 
 #include "grid_optimizer.hpp"
@@ -16,11 +20,13 @@
 #include <iomanip>
 #include <stdexcept>
 
+// Buffer global de trabajo para evaluaciones (CORRECCION B)
+// Thread-local para seguridad en caso de uso con OpenMP
+static thread_local LikelihoodWorkBuffer g_likelihoodBuffer;
+
 /**
- * Evalua log-likelihood usando computeLogLikelihood(). Equivalente a: CALL PLOG(XPLOG, NFIRST, NLAST)
- *
- * @param ctx Contexto con datos del modelo
- * @return Log-likelihood total (XPLOG)
+ * Evalua log-likelihood usando version OPTIMIZADA.
+ * OPTIMIZADO: Usa buffer reutilizable para evitar allocations.
  */
 static double evaluateLogLikelihood(const LikelihoodContext &ctx)
 {
@@ -32,13 +38,15 @@ static double evaluateLogLikelihood(const LikelihoodContext &ctx)
             "Dimensiones inconsistentes entre weights y legislatorCoords");
     }
 
-    LikelihoodResult result = computeLogLikelihood(
+    // OPTIMIZADO: Usar version con buffer pre-allocated
+    LikelihoodResult result = computeLogLikelihoodOptimized(
         ctx.legislatorCoords,
         ctx.rollCallParams,
         ctx.votes,
         ctx.weights,
         ctx.normalCDF,
-        ctx.validRollCalls);
+        ctx.validRollCalls,
+        g_likelihoodBuffer);
 
     return result.logLikelihood;
 }

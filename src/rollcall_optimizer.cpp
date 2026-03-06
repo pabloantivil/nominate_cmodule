@@ -1,5 +1,10 @@
 /**
  * Implementacion del optimizador de parametros de roll calls (RCINT2).
+ *
+ * OPTIMIZACIONES IMPLEMENTADAS:
+ * - Buffer de trabajo reutilizable para evaluaciones de derivadas
+ * - Estructuras de tamano fijo para evitar allocations en hot loops
+ * - Uso de versiones optimizadas de computeRollCallDerivatives
  */
 
 #include "rollcall_optimizer.hpp"
@@ -7,20 +12,43 @@
 #include <algorithm>
 #include <stdexcept>
 #include <limits>
+#include <array>
 
-// Estructuras auxiliares internas
+// Buffer global de trabajo (CORRECCION B)
+// Thread-local para seguridad en caso de uso con OpenMP
+static thread_local RollCallDerivativesWorkBuffer g_rcDerivBuffer;
+
+// ===========================================================================
+// Estructuras auxiliares internas OPTIMIZADAS
+// ===========================================================================
 
 /**
- *  Estado de un punto en la busqueda lineal.
- * YGAMMA, YGMP, YLOG en Fortran.
+ * Estado de un punto en la busqueda lineal - VERSION OPTIMIZADA.
+ * Usa arrays de tamano fijo en lugar de VectorXd.
  */
+struct SearchPointOptimized
+{
+    std::array<double, MAX_DIMENSIONS> midpoint;
+    std::array<double, MAX_DIMENSIONS> spread;
+    double gmp;
+    double logLikelihood;
+    int index;
+
+    SearchPointOptimized() : gmp(0.0), logLikelihood(0.0), index(0)
+    {
+        midpoint.fill(0.0);
+        spread.fill(0.0);
+    }
+};
+
+// Estructuras originales mantenidas para compatibilidad
 struct SearchPoint
 {
-    Eigen::VectorXd midpoint; // YGAMMA(KK, 1:NS)
-    Eigen::VectorXd spread;   // YGAMMA(KK, NS+1:2*NS)
-    double gmp;               // YGMP(KK)
-    double logLikelihood;     // YLOG(KK)
-    int index;                // LLL(KK), para ordenamiento
+    Eigen::VectorXd midpoint;
+    Eigen::VectorXd spread;
+    double gmp;
+    double logLikelihood;
+    int index;
 
     SearchPoint() : gmp(0.0), logLikelihood(0.0), index(0) {}
 
@@ -35,13 +63,36 @@ struct SearchPoint
 };
 
 /**
- * Estado guardado para backtracking.
- * DZSAVE en Fortran.
+ * Estado guardado para backtracking - VERSION OPTIMIZADA.
  */
+struct SavedStateOptimized
+{
+    std::array<double, MAX_DIMENSIONS> midpoint;
+    std::array<double, MAX_DIMENSIONS> spread;
+    int numDim;
+
+    SavedStateOptimized() : numDim(0)
+    {
+        midpoint.fill(0.0);
+        spread.fill(0.0);
+    }
+
+    void save(const Eigen::VectorXd &mid, const Eigen::VectorXd &spr)
+    {
+        numDim = static_cast<int>(mid.size());
+        for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+        {
+            midpoint[k] = mid(k);
+            spread[k] = spr(k);
+        }
+    }
+};
+
+// Estructura original para compatibilidad
 struct SavedState
 {
-    Eigen::VectorXd midpoint; // DZSAVE(1:NS)
-    Eigen::VectorXd spread;   // DZSAVE(NS+1:2*NS)
+    Eigen::VectorXd midpoint;
+    Eigen::VectorXd spread;
 
     SavedState() = default;
 
@@ -57,7 +108,6 @@ struct SavedState
         spread = spr;
     }
 };
-
 
 // Funciones auxiliares
 
@@ -178,6 +228,7 @@ static int findBestPoint(const std::vector<SearchPoint> &points, int numValid)
 
 /**
  *  Ejecuta una iteracion de optimizacion de spread.
+ *  VERSION OPTIMIZADA: Usa buffer global y funcion optimizada.
  *
  * @return GMP alcanzado en esta iteracion
  */
@@ -195,18 +246,21 @@ static double optimizeSpreadIteration(
     const int numDim = static_cast<int>(midpoint.size());
     exitEarly = false;
 
-    // Guardar estado actual (DZSAVE)
-    SavedState saved(numDim);
+    // Guardar estado actual usando arrays fijos (CORRECCION A)
+    SavedStateOptimized saved;
     saved.save(midpoint, spread);
 
     // Proteger spread contra valores extremos
     protectSpread(spread, config.minSpread, config.defaultSpread);
-    saved.spread = spread;
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        saved.spread[k] = spread(k);
+    }
 
-    // Calcular derivadas con PROLLC2
-    auto derivResult = computeRollCallDerivatives(
+    // Calcular derivadas con PROLLC2 OPTIMIZADO (CORRECCION E)
+    auto derivResult = computeRollCallDerivativesOptimized(
         legislatorCoords, rollCallIndex, midpoint, spread,
-        votes, weights, normalCDF);
+        votes, weights, normalCDF, g_rcDerivBuffer);
 
     int numVotes = derivResult.totalVotes;
     if (numVotes == 0)
@@ -217,53 +271,79 @@ static double optimizeSpreadIteration(
 
     double currentGMP = derivResult.geometricMeanProb;
 
-    // Normalizar gradiente (dividir por KRC)
-    Eigen::VectorXd gradSpread = derivResult.spreadDerivatives / static_cast<double>(numVotes);
+    // Normalizar gradiente usando arrays fijos (CORRECCION A)
+    std::array<double, MAX_DIMENSIONS> gradSpread;
+    double gradNormSq = 0.0;
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        gradSpread[k] = derivResult.spreadDerivatives(k) / static_cast<double>(numVotes);
+        gradNormSq += gradSpread[k] * gradSpread[k];
+    }
 
     // Verificar derivadas nulas
-    if (areDerivativesZero(gradSpread, config.derivativeTol))
+    bool allZero = true;
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        if (std::abs(gradSpread[k]) > config.derivativeTol)
+        {
+            allZero = false;
+            break;
+        }
+    }
+    if (allZero)
     {
         exitEarly = true;
         return currentGMP;
     }
 
-    // Calcular norma del gradiente y tamanio de paso
-    double gradNormSq = gradSpread.squaredNorm();
+    // Calcular tamanio de paso
     double stepSize = computeStepSize(gradNormSq, config.stepUnit);
 
-    // Busqueda lineal: evaluar NINC puntos
-    std::vector<SearchPoint> searchPoints(config.numSearchPoints, SearchPoint(numDim));
+    // Busqueda lineal con arrays fijos (CORRECCION A + B)
+    // Preallocamos solo numSearchPoints estructuras livianas
+    std::array<SearchPointOptimized, 15> searchPointsFixed; // Max 15 puntos (NINC tipico)
+    const int numPts = std::min(config.numSearchPoints, 15);
     double stepAccum = 0.0;
 
-    for (int kk = 0; kk < config.numSearchPoints; ++kk)
+    double bestGMP = -1e30;
+    int bestIdx = 0;
+
+    for (int kk = 0; kk < numPts; ++kk)
     {
         // Actualizar spread en direccion del gradiente negativo
-        for (int k = 0; k < numDim; ++k)
+        for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
         {
-            spread(k) = saved.spread(k) - stepAccum * gradSpread(k);
+            spread(k) = saved.spread[k] - stepAccum * gradSpread[k];
         }
 
-        // Evaluar en este punto
-        auto evalResult = computeRollCallDerivatives(
+        // Evaluar en este punto (CORRECCION E: funcion optimizada)
+        auto evalResult = computeRollCallDerivativesOptimized(
             legislatorCoords, rollCallIndex, midpoint, spread,
-            votes, weights, normalCDF);
+            votes, weights, normalCDF, g_rcDerivBuffer);
 
-        // Guardar punto
-        searchPoints[kk].midpoint = midpoint;
-        searchPoints[kk].spread = spread;
-        searchPoints[kk].gmp = evalResult.geometricMeanProb;
-        searchPoints[kk].logLikelihood = evalResult.logLikelihood;
-        searchPoints[kk].index = kk;
+        // Guardar y comparar inline (evita almacenar todo)
+        double gmp = evalResult.geometricMeanProb;
+        if (gmp > bestGMP)
+        {
+            bestGMP = gmp;
+            bestIdx = kk;
+            for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+            {
+                searchPointsFixed[kk].midpoint[k] = midpoint(k);
+                searchPointsFixed[kk].spread[k] = spread(k);
+            }
+            searchPointsFixed[kk].gmp = gmp;
+        }
 
         stepAccum += stepSize;
     }
 
-    // Encontrar el mejor punto
-    int bestIdx = findBestPoint(searchPoints, config.numSearchPoints);
-
     // Actualizar parametros al mejor punto
-    midpoint = searchPoints[bestIdx].midpoint;
-    spread = searchPoints[bestIdx].spread;
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        midpoint(k) = searchPointsFixed[bestIdx].midpoint[k];
+        spread(k) = searchPointsFixed[bestIdx].spread[k];
+    }
 
     // Proteger spread despues de actualizacion
     if (checkAndProtectSpread(spread, config.minSpread, config.defaultSpread))
@@ -271,12 +351,12 @@ static double optimizeSpreadIteration(
         exitEarly = true;
     }
 
-    return searchPoints[bestIdx].gmp;
+    return bestGMP;
 }
 
 /**
  * Ejecuta la fase completa de optimizacion de spread.
- *
+ * VERSION OPTIMIZADA.
  */
 static int optimizeSpreadPhase(
     const Eigen::MatrixXd &legislatorCoords,
@@ -324,10 +404,8 @@ static int optimizeSpreadPhase(
         }
     }
 
-    // Verificacion post-optimizacion
-    auto finalResult = computeRollCallDerivatives(
-        legislatorCoords, rollCallIndex, midpoint, spread,
-        votes, weights, normalCDF);
+    // OPTIMIZACION: Eliminada llamada redundante a computeRollCallDerivativesOptimized
+    // (resultado no se usaba)
 
     return iterations;
 }
@@ -336,6 +414,7 @@ static int optimizeSpreadPhase(
 
 /**
  * Ejecuta una iteracion de optimizacion de midpoint.
+ * VERSION OPTIMIZADA: Usa buffer global y arrays fijos.
  *
  * Incluye restriccion de hiperesfera unitaria.
  */
@@ -352,14 +431,14 @@ static double optimizeMidpointIteration(
 {
     const int numDim = static_cast<int>(midpoint.size());
 
-    // Guardar estado actual
-    SavedState saved(numDim);
+    // Guardar estado actual con arrays fijos (CORRECCION A)
+    SavedStateOptimized saved;
     saved.save(midpoint, spread);
 
-    // Calcular derivadas
-    auto derivResult = computeRollCallDerivatives(
+    // Calcular derivadas con funcion optimizada (CORRECCION E)
+    auto derivResult = computeRollCallDerivativesOptimized(
         legislatorCoords, rollCallIndex, midpoint, spread,
-        votes, weights, normalCDF);
+        votes, weights, normalCDF, g_rcDerivBuffer);
 
     int numVotes = derivResult.totalVotes;
     if (numVotes == 0)
@@ -368,40 +447,56 @@ static double optimizeMidpointIteration(
         return 0.0;
     }
 
-    // Normalizar gradiente
-    Eigen::VectorXd gradMidpoint = derivResult.midpointDerivatives / static_cast<double>(numVotes);
+    // Normalizar gradiente usando arrays fijos (CORRECCION A)
+    std::array<double, MAX_DIMENSIONS> gradMidpoint;
+    double gradNormSq = 0.0;
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        gradMidpoint[k] = derivResult.midpointDerivatives(k) / static_cast<double>(numVotes);
+        gradNormSq += gradMidpoint[k] * gradMidpoint[k];
+    }
 
-    // Calcular norma y tamanio de paso
-    double gradNormSq = gradMidpoint.squaredNorm();
+    // Calcular tamanio de paso
     double stepSize = computeStepSize(gradNormSq, config.stepUnit);
 
-    // Busqueda lineal con restriccion esferica
-    std::vector<SearchPoint> searchPoints(config.numSearchPoints, SearchPoint(numDim));
+    // Busqueda lineal con arrays fijos y restriccion esferica
+    std::array<SearchPointOptimized, 15> searchPointsFixed;
+    const int numPts = std::min(config.numSearchPoints, 15);
     double stepAccum = 0.0;
     validPoints = 0;
 
-    for (int kk = 0; kk < config.numSearchPoints; ++kk)
+    double bestGMP = -1e30;
+    int bestIdx = 0;
+
+    for (int kk = 0; kk < numPts; ++kk)
     {
         // Actualizar midpoint en direccion del gradiente negativo
-        for (int k = 0; k < numDim; ++k)
+        for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
         {
-            midpoint(k) = saved.midpoint(k) - stepAccum * gradMidpoint(k);
+            midpoint(k) = saved.midpoint[k] - stepAccum * gradMidpoint[k];
         }
 
         // Verificar restriccion de hiperesfera unitaria
         bool projected = projectToUnitSphere(midpoint);
 
-        // Evaluar en este punto
-        auto evalResult = computeRollCallDerivatives(
+        // Evaluar en este punto (CORRECCION E: funcion optimizada)
+        auto evalResult = computeRollCallDerivativesOptimized(
             legislatorCoords, rollCallIndex, midpoint, spread,
-            votes, weights, normalCDF);
+            votes, weights, normalCDF, g_rcDerivBuffer);
 
-        // Guardar punto
-        searchPoints[kk].midpoint = midpoint;
-        searchPoints[kk].spread = spread;
-        searchPoints[kk].gmp = evalResult.geometricMeanProb;
-        searchPoints[kk].logLikelihood = evalResult.logLikelihood;
-        searchPoints[kk].index = kk;
+        // Guardar y comparar inline
+        double gmp = evalResult.geometricMeanProb;
+        if (gmp > bestGMP)
+        {
+            bestGMP = gmp;
+            bestIdx = kk;
+            for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+            {
+                searchPointsFixed[kk].midpoint[k] = midpoint(k);
+                searchPointsFixed[kk].spread[k] = spread(k);
+            }
+            searchPointsFixed[kk].gmp = gmp;
+        }
 
         validPoints = kk + 1;
 
@@ -414,19 +509,19 @@ static double optimizeMidpointIteration(
         stepAccum += stepSize;
     }
 
-    // Encontrar el mejor punto
-    int bestIdx = findBestPoint(searchPoints, validPoints);
+    // Actualizar parametros al mejor punto
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        midpoint(k) = searchPointsFixed[bestIdx].midpoint[k];
+        spread(k) = searchPointsFixed[bestIdx].spread[k];
+    }
 
-    // Actualizar parametros
-    midpoint = searchPoints[bestIdx].midpoint;
-    spread = searchPoints[bestIdx].spread;
-
-    return searchPoints[bestIdx].gmp;
+    return bestGMP;
 }
 
 /**
  * Ejecuta la fase completa de optimizacion de midpoint.
- *
+ * VERSION OPTIMIZADA.
  */
 static int optimizeMidpointPhase(
     const Eigen::MatrixXd &legislatorCoords,
@@ -469,14 +564,11 @@ static int optimizeMidpointPhase(
         }
     }
 
-    // Verificacion post-optimizacion
-    auto finalResult = computeRollCallDerivatives(
-        legislatorCoords, rollCallIndex, midpoint, spread,
-        votes, weights, normalCDF);
+    // OPTIMIZACION: Eliminada llamada redundante a computeRollCallDerivativesOptimized
+    // (resultado no se usaba)
 
     return iterations;
 }
-
 
 // Implementacion principal
 RollCallOptimizationResult optimizeRollCall(

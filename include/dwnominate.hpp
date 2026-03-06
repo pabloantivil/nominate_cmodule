@@ -44,6 +44,15 @@ struct DWNominateConfig
     double marginThreshold; // Umbral de margen (0.025)
     bool verbose;           // Imprimir mensajes de progreso
 
+    // === Modo validación: fijar parámetros globales ===
+    bool fixGlobalParams; // Si true, NO re-estima W2 ni Beta (para diagnostico)
+
+    // === Modo validación: fijar parámetros de roll calls ===
+    bool fixRollCalls; // Si true, NO re-estima cutting planes (usa valores cargados)
+
+    // === Modo validación: fijar coordenadas de legisladores ===
+    bool fixLegislators; // Si true, NO optimiza coordenadas (solo calcula likelihood)
+
     DWNominateConfig()
         : numDimensions(2),
           temporalModel(0),
@@ -52,7 +61,10 @@ struct DWNominateConfig
           firstIteration(1),
           lastIteration(1),
           marginThreshold(0.025),
-          verbose(false)
+          verbose(false),
+          fixGlobalParams(false), // Por defecto: modo normal
+          fixRollCalls(false),    // Por defecto: re-estimar roll calls
+          fixLegislators(false)   // Por defecto: optimizar legisladores
     {
     }
 };
@@ -233,13 +245,83 @@ struct DWNominateResult
     int classificationAfter;
     int totalValidVotes;
 
+    // SOPORTE MULTI-PERIODO
+    // Coeficientes temporales por legislador (XBETA): uniqueId -> Matrix(4, numDim)
+    // beta(0,k) = constante, beta(1,k) = lineal, beta(2,k) = cuadratico, beta(3,k) = cubico
+    std::map<int, Eigen::MatrixXd> temporalCoefficients;
+
+    // Lista de IDs unicos de legisladores procesados
+    std::vector<int> legislatorUniqueIds;
+
+    // Configuracion del modelo para reconstruccion
+    int numPeriods;    // Numero de periodos (congresos)
+    int temporalModel; // Modelo temporal (0=constante, 1=lineal, 2=cuadratico, 3=cubico)
+    int numDimensions; // Numero de dimensiones espaciales
+
     DWNominateResult()
         : finalLogLikelihood(0.0),
           totalIterations(0),
           classificationBefore(0),
           classificationAfter(0),
-          totalValidVotes(0)
+          totalValidVotes(0),
+          numPeriods(1),
+          temporalModel(0),
+          numDimensions(2)
     {
+    }
+
+    /**
+     * @brief Reconstruye coordenadas de un legislador en un periodo especifico.
+     *
+     * Usa los coeficientes temporales (polinomios de Legendre) para calcular
+     * la posicion del legislador en el periodo indicado.
+     *
+     * @param uniqueId ID unico del legislador
+     * @param period Periodo (1-based, 1 a numPeriods)
+     * @return Vector de coordenadas [coord1D, coord2D, ...] o vector vacio si no existe
+     */
+    Eigen::VectorXd getCoordinatesAtPeriod(int uniqueId, int period) const
+    {
+        auto it = temporalCoefficients.find(uniqueId);
+        if (it == temporalCoefficients.end())
+        {
+            return Eigen::VectorXd();
+        }
+
+        const Eigen::MatrixXd &coef = it->second;
+        int ns = static_cast<int>(coef.cols());
+        Eigen::VectorXd coords(ns);
+
+        // Calcular tiempo normalizado t en [-1, 1]
+        // period es 1-based, convertir a 0-based index
+        double t = 0.0;
+        if (numPeriods > 1)
+        {
+            t = -1.0 + 2.0 * static_cast<double>(period - 1) / static_cast<double>(numPeriods - 1);
+        }
+
+        // Polinomios de Legendre
+        double p0 = 1.0;
+        double p1 = t;
+        double p2 = (3.0 * t * t - 1.0) / 2.0;
+        double p3 = (5.0 * t * t * t - 3.0 * t) / 2.0;
+
+        // Reconstruir coordenadas para cada dimension
+        for (int k = 0; k < ns; ++k)
+        {
+            coords(k) = coef(0, k) * p0 + coef(1, k) * p1 + coef(2, k) * p2 + coef(3, k) * p3;
+        }
+
+        return coords;
+    }
+
+    /**
+     * @brief Verifica si hay coeficientes temporales disponibles.
+     * @return true si se pueden reconstruir coordenadas por periodo
+     */
+    bool hasTemporalCoefficients() const
+    {
+        return !temporalCoefficients.empty();
     }
 };
 
@@ -315,12 +397,20 @@ private:
     ClassificationStats globalStats_; // KLASS, KLASSYY, etc.
     double currentLogLikelihood_;     // XPLOG actual
 
+    // Estadisticas de clasificacion de la ultima ejecucion de RC phase
+    int lastTotalVotes_;          // Total votos validos procesados
+    int lastClassificationAfter_; // Votos correctamente clasificados
+
     // Estadisticas por legislador (se actualizan en cada iteracion)
     Eigen::MatrixXd legislatorLogLikelihood_; // XBIGLOG
     Eigen::MatrixXi legislatorVoteCounts_;    // KBIGLOG
 
     // Varianzas por legislador unico
     Eigen::MatrixXd legislatorVariances_; // XVAR
+
+    // Coeficientes temporales por legislador (XBETA): uniqueId -> Matrix(4, numDim)
+    // Almacena los coeficientes de Legendre para reconstruir coordenadas por periodo
+    std::map<int, Eigen::MatrixXd> temporalCoefficients_;
 
     // Polaridad de cortes por roll call
     std::vector<CuttingPolarity> rollCallPolarity_; // MCUTS
@@ -392,6 +482,24 @@ private:
         int &classificationBefore,
         int &classificationAfter,
         int &totalVotes);
+
+    /**
+     * @brief Procesa un roll call individual (version thread-safe para OpenMP).
+     *
+     * Esta version es segura para ejecutar en paralelo porque:
+     * - Solo lee datos compartidos (legislatorCoords_, votes_, weights_)
+     * - Escribe en filas independientes de matrices (una por roll call)
+     * - Retorna estadisticas en variables locales
+     */
+    void processRollCallParallel(
+        int congressIndex,
+        int rollCallLocalIndex,
+        int globalRollCallIndex,
+        int iteration,
+        int legislatorOffset,
+        int &localClassificationBefore,
+        int &localClassificationAfter,
+        int &localTotalVotes);
 
     /**
      * @brief Prepara datos para un roll call.

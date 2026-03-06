@@ -7,12 +7,57 @@
  * PROLLC2 calcula derivadas del log-likelihood respecto a los parametros
  * de una votacion especifica (midpoint y spread), necesarias para el
  * optimizador RCINT2
+ *
+ * OPTIMIZACIONES IMPLEMENTADAS:
+ * - Correccion A: Vectores de tamano fijo (stack allocation)
+ * - Correccion B: Buffers de trabajo pre-allocated
+ * - Correccion C: Pesos al cuadrado cacheados
+ * - Correccion E: Calculos inline sin llamadas a funciones auxiliares
  */
 
 #include "likelihood.hpp"
 #include "normal_cdf.hpp"
 #include <Eigen/Dense>
 #include <vector>
+#include <array>
+
+/**
+ * Buffer de trabajo para computeRollCallDerivatives.
+ * CORRECCION B: Elimina allocations dinamicas en hot loops.
+ */
+struct RollCallDerivativesWorkBuffer
+{
+    // CORRECCION A/C: Arrays fijos + pesos cacheados
+    std::array<double, MAX_DIMENSIONS> weightsSquared;
+    std::array<double, MAX_DIMENSIONS> midpointDeriv;
+    std::array<double, MAX_DIMENSIONS> spreadDeriv;
+    int numDimensions;
+
+    RollCallDerivativesWorkBuffer() : numDimensions(0)
+    {
+        weightsSquared.fill(0.0);
+        midpointDeriv.fill(0.0);
+        spreadDeriv.fill(0.0);
+    }
+
+    void cacheWeights(const Eigen::VectorXd &weights, int ns)
+    {
+        numDimensions = ns;
+        for (int k = 0; k < ns && k < MAX_DIMENSIONS; ++k)
+        {
+            weightsSquared[k] = weights(k) * weights(k);
+        }
+    }
+
+    void reset()
+    {
+        for (int k = 0; k < numDimensions && k < MAX_DIMENSIONS; ++k)
+        {
+            midpointDeriv[k] = 0.0;
+            spreadDeriv[k] = 0.0;
+        }
+    }
+};
 
 /**
  * Resultado del calculo de derivadas para un roll call.
@@ -116,5 +161,46 @@ RollCallDerivativesResult computeRollCallDerivatives(
     const VoteMatrix &votes,
     const Eigen::VectorXd &weights,
     const NormalCDF &normalCDF);
+
+// ===========================================================================
+// VERSION OPTIMIZADA - CORRECCIONES A, B, C, D, E
+// ===========================================================================
+
+/**
+ * Version optimizada de computeRollCallDerivatives.
+ *
+ * OPTIMIZACIONES:
+ * - Correccion A: Arrays de tamano fijo (sin heap allocations)
+ * - Correccion B: Buffer de trabajo reutilizable
+ * - Correccion C: Pesos al cuadrado pre-cacheados en buffer
+ * - Correccion D: Filtrado por legisladores validos (opcional)
+ * - Correccion E: Calculos inline de distancia y utilidad
+ *
+ * Logica matematica: INTACTA
+ */
+RollCallDerivativesResult computeRollCallDerivativesOptimized(
+    const Eigen::MatrixXd &legislatorCoords,
+    int rollCallIndex,
+    const Eigen::VectorXd &midpoint,
+    const Eigen::VectorXd &spread,
+    const VoteMatrix &votes,
+    const Eigen::VectorXd &weights,
+    const NormalCDF &normalCDF,
+    RollCallDerivativesWorkBuffer &buffer);
+
+/**
+ * Version optimizada con lista de legisladores validos.
+ * CORRECCION D: Solo itera sobre legisladores que votaron.
+ */
+RollCallDerivativesResult computeRollCallDerivativesOptimized(
+    const Eigen::MatrixXd &legislatorCoords,
+    int rollCallIndex,
+    const Eigen::VectorXd &midpoint,
+    const Eigen::VectorXd &spread,
+    const VoteMatrix &votes,
+    const Eigen::VectorXd &weights,
+    const NormalCDF &normalCDF,
+    RollCallDerivativesWorkBuffer &buffer,
+    const std::vector<int> &validLegislators);
 
 #endif // ROLLCALL_DERIVATIVES_HPP

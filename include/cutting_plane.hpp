@@ -12,20 +12,23 @@
 #include <Eigen/SVD>
 #include <vector>
 
+// Flag global para debug de SEARCH (definido en cutting_plane.cpp)
+extern bool g_searchDebug;
+
 /**
  * Resultado del refinamiento del plano de corte (SEARCH
  * Contiene el vector normal optimizado, punto de corte, polaridad y estadisticas de clasificacion.
  */
 struct SearchResult
 {
-    Eigen::VectorXd normalVector; // Vector normal optimizado (equivalente a ZVEC(JX,:) de salida)
-    double cuttingPoint; // Punto de corte optimo (equivalente a WS(JX) de salida)
-    CuttingPolarity polarity; // Polaridad del corte (KCUT, LCUT)
-    ClassificationCounts counts;  // Conteos de clasificacion del mejor resultado
-    int errors; // Numero de errores de la mejor solucion (KITTY1)
-    int totalClassified; // Total de votos clasificados (KITTY2)
+    Eigen::VectorXd normalVector;    // Vector normal optimizado (equivalente a ZVEC(JX,:) de salida)
+    double cuttingPoint;             // Punto de corte optimo (equivalente a WS(JX) de salida)
+    CuttingPolarity polarity;        // Polaridad del corte (KCUT, LCUT)
+    ClassificationCounts counts;     // Conteos de clasificacion del mejor resultado
+    int errors;                      // Numero de errores de la mejor solucion (KITTY1)
+    int totalClassified;             // Total de votos clasificados (KITTY2)
     std::vector<double> projections; // Proyecciones finales de legisladores (XXY)
-    int bestIteration; // Numero de la iteracion que produjo el mejor resultado
+    int bestIteration;               // Numero de la iteracion que produjo el mejor resultado
     bool isPerfectClassification;
 
     SearchResult()
@@ -131,15 +134,15 @@ struct ProjectionStats
  */
 struct RollCallClassification
 {
-    CuttingPolarity polarity; // Polaridad de la votacion (KCUT, LCUT)
-    double cuttingPoint; // Punto de corte optimo (WS(JX)) 
+    CuttingPolarity polarity;          // Polaridad de la votacion (KCUT, LCUT)
+    double cuttingPoint;               // Punto de corte optimo (WS(JX))
     std::vector<int> legislatorErrors; // Errores por legislador para esta votacion
-    ClassificationCounts counts; // Conteos de clasificacion
-    ProjectionStats projStats; // Estadisticas de proyecciones
-    std::vector<double> projections; // Proyecciones finales de legisladores
-    bool searchPerformed; // Flag indicando si se ejecuto SEARCH
-    int totalErrors; // Numero de errores de clasificacion
-    int totalClassified; // Total de votos clasificados (excluye ausentes)
+    ClassificationCounts counts;       // Conteos de clasificacion
+    ProjectionStats projStats;         // Estadisticas de proyecciones
+    std::vector<double> projections;   // Proyecciones finales de legisladores
+    bool searchPerformed;              // Flag indicando si se ejecuto SEARCH
+    int totalErrors;                   // Numero de errores de clasificacion
+    int totalClassified;               // Total de votos clasificados (excluye ausentes)
 
     RollCallClassification()
         : cuttingPoint(0.0),
@@ -160,16 +163,16 @@ struct RollCallClassification
  */
 struct CutplaneResult
 {
-    std::vector<CuttingPolarity> polarities; // Polaridades de todas las votaciones (MCUTS)
-    std::vector<double> cuttingPoints; // Puntos de corte de todas las votaciones (WS(:))
+    std::vector<CuttingPolarity> polarities;             // Polaridades de todas las votaciones (MCUTS)
+    std::vector<double> cuttingPoints;                   // Puntos de corte de todas las votaciones (WS(:))
     std::vector<RollCallClassification> rollCallResults; // Clasificacion detallada por roll call
-    int totalClassified; // Total de votos clasificados (KT)
-    int totalErrors; // Total de errores de clasificacion (KTT)
-    double errorRate; // Tasa de error global (XERROR = KTT/KT)
-    double accuracy; // Tasa de acierto global (YERROR = 1 - XERROR)
-    int numLegislators; // Numero de legisladores (NP)
-    int numRollCalls; // Numero de votaciones (NRCALL)
-    int numDimensions; // Numero de dimensiones (NS)
+    int totalClassified;                                 // Total de votos clasificados (KT)
+    int totalErrors;                                     // Total de errores de clasificacion (KTT)
+    double errorRate;                                    // Tasa de error global (XERROR = KTT/KT)
+    double accuracy;                                     // Tasa de acierto global (YERROR = 1 - XERROR)
+    int numLegislators;                                  // Numero de legisladores (NP)
+    int numRollCalls;                                    // Numero de votaciones (NRCALL)
+    int numDimensions;                                   // Numero de dimensiones (NS)
 
     CutplaneResult()
         : totalClassified(0),
@@ -179,7 +182,6 @@ struct CutplaneResult
           numLegislators(0),
           numRollCalls(0),
           numDimensions(0) {}
-
 
     // Obtiene la matriz de errores LERROR(i,jx) completa.
     Eigen::MatrixXi getLegislatorErrorMatrix() const

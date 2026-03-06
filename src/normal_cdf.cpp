@@ -140,6 +140,17 @@ double NormalCDF::pdfOverCdf(double z) const
     return interpolate(z, 3); // Columna 4 en Fortran (índice 3 en C++)
 }
 
+double NormalCDF::gaussOverCdf(double z) const
+{
+    // Fortran-compatible: ZGAUSS/ZDISTF where ZGAUSS = exp(-ZS²/2)
+    // This is the Mills ratio without the 1/sqrt(2*pi) factor
+    double cdf_val = cdf(z);
+    if (cdf_val < 1e-300)
+    {
+        cdf_val = 1e-300; // Avoid division by zero
+    }
+    return std::exp(-z * z / 2.0) / cdf_val;
+}
 double NormalCDF::getZ(size_t index) const
 {
     if (index >= tableSize_)

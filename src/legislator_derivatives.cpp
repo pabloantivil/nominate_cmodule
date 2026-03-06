@@ -379,8 +379,8 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
                 continue;
             }
 
-            // Verificar si el voto es missing
-            if (votes.isMissing(mwhere, globalRC))
+            // Verificar si el voto es missing - VERSION SIN BOUNDS CHECK
+            if (votes.isMissingUnsafe(mwhere, globalRC))
             {
                 continue;
             }
@@ -393,8 +393,8 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
             computeDistances(coords, midpoint, spread, numDim,
                              dyesSquared, dnoSquared, dyesLinear, dnoLinear);
 
-            // Obtener voto
-            bool voteYes = votes.getVote(mwhere, globalRC);
+            // Obtener voto - VERSION SIN BOUNDS CHECK
+            bool voteYes = votes.getVoteUnsafe(mwhere, globalRC);
 
             // Calcular utilidades
             auto [utilChosen, utilOther] = computeUtilities(

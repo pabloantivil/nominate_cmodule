@@ -7,3 +7,11 @@ cmake_install.cmake
 Makefile
 # Configuración local de VS Code
 .vscode/
+/docs
+/output_cpp
+/output_R_dwnominate
+/output_wnominate
+/input_R
+/tests
+*.log
+*.ps1

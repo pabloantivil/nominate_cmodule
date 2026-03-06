@@ -88,7 +88,7 @@ namespace
 
     /**
      * Calcula tamano de nube parcial.
-     * 
+     *
      * @param totalErrors Numero total de errores
      * @param numDimensions Numero de dimensiones (NS)
      * @param numLegislators Numero de legisladores (NP)
@@ -346,6 +346,10 @@ namespace
 } // namespace anonimo
 
 // Implementacion de funciones publicas
+
+// Flag global para debug de SEARCH (solo para tests)
+bool g_searchDebug = false;
+
 SearchResult refineCuttingPlane(
     const Eigen::MatrixXd &legislatorCoords,
     const std::vector<int> &votes,
@@ -381,13 +385,13 @@ SearchResult refineCuttingPlane(
     // Variables para clasificacion
     int lastJCH = 0, lastJEH = 0, lastJCL = 0, lastJEL = 0;
 
-    // Loop principal de busqueda 
+    // Loop principal de busqueda
     for (int iter = 0; iter < maxIterations; ++iter)
     {
         SearchIterationState state;
         state.normalVector = currentNormal;
 
-        // Proyeccion y clasificacion 
+        // Proyeccion y clasificacion
         // Proyectar legisladores sobre el vector normal actual
         std::vector<double> projections = computeProjections(legislatorCoords, currentNormal);
 
@@ -410,10 +414,10 @@ SearchResult refineCuttingPlane(
             originalIndices,
             legislatorCoords,
             ns,
-            0, 
+            0,
             CuttingPointMode::NORMAL);
 
-        // Guardar resultados de iteracion 
+        // Guardar resultados de iteracion
         state.errorCount = static_cast<double>(cutResult.counts.totalErrors());
         state.cuttingPoint = cutResult.cuttingPoint;
         state.kcut = cutResult.polarity.lowSideVote;
@@ -590,7 +594,7 @@ namespace
         {
             int vote = votes[i];
 
-            // Ausentes no generan errores 
+            // Ausentes no generan errores
             if (vote == 0 || vote == VoteCode::MISSING)
             {
                 continue;
@@ -640,10 +644,7 @@ namespace
 
 } // namespace anonimo (CUTPLANE helpers)
 
-// ----------------------------------------------------------------------------
 // classifyRollCall - Clasificacion de una votacion individual
-// ----------------------------------------------------------------------------
-
 RollCallClassification classifyRollCall(
     const Eigen::MatrixXd &legislatorCoords,
     Eigen::VectorXd &normalVector,
@@ -694,7 +695,7 @@ RollCallClassification classifyRollCall(
         originalIndices[i] = static_cast<int>(sortedIndices[i]);
     }
 
-    // Encontrar punto de corte optimo - JAN1PT 
+    // Encontrar punto de corte optimo - JAN1PT
     CuttingPointResult cutResult = findCuttingPoint1D(
         sortedProjections,
         sortedVotes,
@@ -729,7 +730,7 @@ RollCallClassification classifyRollCall(
         result.totalErrors = jeh + jel;
         result.searchPerformed = false;
     }
-    // Busqueda de rotaciones - SEARCH 
+    // Busqueda de rotaciones - SEARCH
     else
     {
         // Solo ejecutar SEARCH si NS > 1

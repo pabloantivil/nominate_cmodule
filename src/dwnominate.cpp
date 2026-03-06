@@ -8,12 +8,26 @@
 #include <cmath>
 #include <algorithm>
 #include <limits>
+#include <chrono>
+#include <set>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+// Instrumentacion de tiempo por fase
+static double g_wintTimeMs = 0.0;
+static double g_sigmasTimeMs = 0.0;
+static double g_rcTimeMs = 0.0;
+static double g_legTimeMs = 0.0;
 
 // CONSTRUCTOR E INICIALIZACION
 DWNominate::DWNominate(const DWNominateConfig &config, const DWNominateInput &input)
     : config_(config),
       votes_(input.votes),
-      currentLogLikelihood_(0.0)
+      currentLogLikelihood_(0.0),
+      lastTotalVotes_(0),
+      lastClassificationAfter_(0)
 {
     // call init_zdf
     initializeCDF();
@@ -160,13 +174,31 @@ void DWNominate::loadRollCalls(const DWNominateInput &input)
         int krctot = kyes + kno;
         int krcmin = std::min(kyes, kno);
         double xmarg = (krctot > 0) ? static_cast<double>(krcmin) / krctot : 0.0;
+
+        // Verificar si spread es ~0 (indica roll call NA de R cuando fixRollCalls=true)
+        bool hasNonZeroSpread = false;
+        for (int d = 0; d < config_.numDimensions; ++d)
+        {
+            if (std::abs(rollCallSpreads_(i, d)) > 1e-10)
+            {
+                hasNonZeroSpread = true;
+                break;
+            }
+        }
+
         // Nota: RCBAD=.TRUE. significa roll call VALIDO en Fortran
-        validRollCalls_[i] = (xmarg >= config_.marginThreshold);
+        // Roll call es válido si: margen >= threshold Y spread no es cero
+        validRollCalls_[i] = (xmarg >= config_.marginThreshold) && hasNonZeroSpread;
     }
 }
 
 /**
  * Carga legisladores y construye mapas de presencia.
+ *
+ * Para el modelo temporal (NMODEL >= 1), es crucial detectar correctamente
+ * en qué periodos (congresos) participó cada legislador. Esto se hace
+ * analizando los votos: un legislador "participa" en un periodo si tiene
+ * al menos un voto no-missing en los roll calls de ese periodo.
  */
 void DWNominate::loadLegislators(const DWNominateInput &input)
 {
@@ -183,10 +215,15 @@ void DWNominate::loadLegislators(const DWNominateInput &input)
     }
     legislatorPresence_.resize(maxUniqueId + 1);
 
-    for (int i = 0; i < static_cast<int>(legislatorUniqueId_.size()); ++i)
+    // Obtener dimensiones
+    int numLegislators = static_cast<int>(legislatorUniqueId_.size());
+    int numRollCalls = static_cast<int>(rollCallCongress_.size());
+
+    // DETECCION DE PRESENCIA BASADA EN VOTOS
+    // Para cada legislador, detectar en qué periodos tiene votos no-missing
+    for (int i = 0; i < numLegislators; ++i)
     {
         int uniqueId = legislatorUniqueId_[i];
-        int congress = legislatorCongress_[i];
 
         // Inicializar si es la primera vez que vemos este ID
         if (legislatorPresence_[uniqueId].uniqueId < 0)
@@ -194,8 +231,48 @@ void DWNominate::loadLegislators(const DWNominateInput &input)
             legislatorPresence_[uniqueId].uniqueId = uniqueId;
         }
 
-        legislatorPresence_[uniqueId].congressToDataIndex[congress] = i;
+        // Set para rastrear periodos en que participa este legislador
+        std::set<int> periodsWithVotes;
+
+        // Recorrer todos los roll calls para encontrar votos del legislador
+        for (int j = 0; j < numRollCalls; ++j)
+        {
+            // Si el legislador tiene un voto no-missing en este roll call
+            if (!votes_.isMissing(static_cast<size_t>(i), static_cast<size_t>(j)))
+            {
+                // Agregar el periodo de este roll call
+                int period = rollCallCongress_[j];
+                periodsWithVotes.insert(period);
+            }
+        }
+
+        // Agregar todos los periodos detectados al mapa de presencia
+        for (int period : periodsWithVotes)
+        {
+            // El dataIndex es el índice del legislador en el array de datos
+            // (mismo para todos los periodos ya que comparten coordenadas base)
+            legislatorPresence_[uniqueId].congressToDataIndex[period] = i;
+        }
     }
+
+    // Log de diagnóstico
+    int totalPresence = 0;
+    int multiPeriodCount = 0;
+    for (int uid = 0; uid <= maxUniqueId; ++uid)
+    {
+        if (legislatorPresence_[uid].uniqueId >= 0)
+        {
+            int numPeriods = static_cast<int>(legislatorPresence_[uid].congressToDataIndex.size());
+            totalPresence += numPeriods;
+            if (numPeriods > 1)
+            {
+                multiPeriodCount++;
+            }
+        }
+    }
+    log("  Presencia detectada: " + std::to_string(totalPresence) +
+        " entradas, " + std::to_string(multiPeriodCount) +
+        " legisladores con multiples periodos");
 }
 
 // METODO PRINCIPAL run()
@@ -207,6 +284,14 @@ DWNominateResult DWNominate::run()
     DWNominateResult result;
     int ns = config_.numDimensions;
 
+    // Reset timers
+    g_wintTimeMs = 0.0;
+    g_sigmasTimeMs = 0.0;
+    g_rcTimeMs = 0.0;
+    g_legTimeMs = 0.0;
+
+    auto iterStart = std::chrono::high_resolution_clock::now();
+
     // Bucle principal IHAPPY
     for (int ihappy = config_.firstIteration; ihappy <= config_.lastIteration; ++ihappy)
     {
@@ -215,31 +300,91 @@ DWNominateResult DWNominate::run()
         // Fase de pesos dimensionales (WINT)
         if (ns >= 2)
         {
-            log("Estimando pesos dimensionales...");
-            executeWeightPhase();
+            if (config_.fixGlobalParams)
+            {
+                log("[VALIDACION] W2 fijo en " + std::to_string(weights_(1)) + " (no re-estimado)");
+            }
+            else
+            {
+                log("Estimando pesos dimensionales...");
+                auto phaseStart = std::chrono::high_resolution_clock::now();
+                executeWeightPhase();
+                auto phaseEnd = std::chrono::high_resolution_clock::now();
+                g_wintTimeMs += std::chrono::duration<double, std::milli>(phaseEnd - phaseStart).count();
+            }
         }
 
         // Fase de beta (SIGMAS)
-        log("Estimando beta...");
-        executeBetaPhase();
+        if (config_.fixGlobalParams)
+        {
+            log("[VALIDACION] Beta fijo en " + std::to_string(weights_(2)) + " (no re-estimado)");
+        }
+        else
+        {
+            log("Estimando beta...");
+            auto phaseStart = std::chrono::high_resolution_clock::now();
+            executeBetaPhase();
+            auto phaseEnd = std::chrono::high_resolution_clock::now();
+            g_sigmasTimeMs += std::chrono::duration<double, std::milli>(phaseEnd - phaseStart).count();
+        }
 
         // Fase de roll calls
-        log("Estimando vectores de roll calls...");
-        executeRollCallPhase(ihappy);
+        if (config_.fixRollCalls)
+        {
+            log("[VALIDACION] Roll calls fijos (cutting planes no re-estimados)");
+        }
+        else
+        {
+            log("Estimando vectores de roll calls...");
+            auto phaseStart = std::chrono::high_resolution_clock::now();
+            executeRollCallPhase(ihappy);
+            auto phaseEnd = std::chrono::high_resolution_clock::now();
+            g_rcTimeMs += std::chrono::duration<double, std::milli>(phaseEnd - phaseStart).count();
+        }
 
         // PLOG despues de roll calls
         currentLogLikelihood_ = computeLogLikelihood();
 
         // Fase de legisladores
-        log("Estimando coordenadas de legisladores...");
-        executeLegislatorPhase();
+        if (config_.fixLegislators)
+        {
+            log("[VALIDACION] Coordenadas de legisladores fijas (solo PLOG, sin optimizacion)");
+        }
+        else
+        {
+            log("Estimando coordenadas de legisladores...");
+            auto phaseStart = std::chrono::high_resolution_clock::now();
+            executeLegislatorPhase();
+            auto phaseEnd = std::chrono::high_resolution_clock::now();
+            g_legTimeMs += std::chrono::duration<double, std::milli>(phaseEnd - phaseStart).count();
+        }
 
         // PLOG despues de legisladores
         currentLogLikelihood_ = computeLogLikelihood();
 
         result.totalIterations = ihappy;
+
+        // Reporte de tiempos por iteración
+        auto iterNow = std::chrono::high_resolution_clock::now();
+        double elapsedSec = std::chrono::duration<double>(iterNow - iterStart).count();
+        std::cout << "[TIMING iter " << ihappy << "] "
+                  << "WINT=" << (g_wintTimeMs / 1000.0) << "s, "
+                  << "SIGMAS=" << (g_sigmasTimeMs / 1000.0) << "s, "
+                  << "RC=" << (g_rcTimeMs / 1000.0) << "s, "
+                  << "LEG=" << (g_legTimeMs / 1000.0) << "s, "
+                  << "Total=" << elapsedSec << "s\n";
     }
     // Fin bucle 9999
+
+    // Reporte final de tiempos
+    std::cout << "\n========== RESUMEN DE TIEMPOS ==========\n";
+    std::cout << "  WINT (pesos):      " << (g_wintTimeMs / 1000.0) << " segundos\n";
+    std::cout << "  SIGMAS (beta):     " << (g_sigmasTimeMs / 1000.0) << " segundos\n";
+    std::cout << "  RC (roll calls):   " << (g_rcTimeMs / 1000.0) << " segundos\n";
+    std::cout << "  LEG (legisladores):" << (g_legTimeMs / 1000.0) << " segundos\n";
+    double totalTime = (g_wintTimeMs + g_sigmasTimeMs + g_rcTimeMs + g_legTimeMs) / 1000.0;
+    std::cout << "  TOTAL FASES:       " << totalTime << " segundos\n";
+    std::cout << "==========================================\n\n";
 
     // Preparar resultados
     result.legislatorCoords = legislatorCoords_;
@@ -248,6 +393,10 @@ DWNominateResult DWNominate::run()
     result.weights = weights_;
     result.finalLogLikelihood = currentLogLikelihood_;
     result.finalStats = globalStats_;
+
+    // Asignar estadisticas de clasificacion (correccion bug reporte)
+    result.totalValidVotes = lastTotalVotes_;
+    result.classificationAfter = lastClassificationAfter_;
 
     // Recopilar estadisticas por legislador
     int numLegislators = static_cast<int>(legislatorCoords_.rows());
@@ -294,6 +443,23 @@ DWNominateResult DWNominate::run()
             stats.stdDevX2 = std::sqrt(std::abs(stats.varianceX2));
         }
     }
+
+    // === SOPORTE MULTI-PERIODO ===
+    // Copiar coeficientes temporales al resultado
+    result.temporalCoefficients = temporalCoefficients_;
+
+    // Construir lista de IDs unicos de legisladores procesados
+    result.legislatorUniqueIds.clear();
+    for (const auto &pair : temporalCoefficients_)
+    {
+        result.legislatorUniqueIds.push_back(pair.first);
+    }
+    std::sort(result.legislatorUniqueIds.begin(), result.legislatorUniqueIds.end());
+
+    // Guardar configuracion del modelo para reconstruccion
+    result.numPeriods = config_.lastCongress - config_.firstCongress + 1;
+    result.temporalModel = config_.temporalModel;
+    result.numDimensions = ns;
 
     return result;
 }
@@ -396,7 +562,17 @@ void DWNominate::executeRollCallPhase(int iteration)
     int classificationAfter = 0;  // LASSAF
     int totalVotes = 0;           // LATOT
 
-    // Loop sobre congresos
+    // Estructura para trabajo paralelo
+    struct RollCallWork
+    {
+        int congressIndex;
+        int rollCallLocalIndex;
+        int globalRollCallIndex;
+        int legislatorOffset;
+    };
+
+    // Construir lista de trabajos (aplanar loop anidado)
+    std::vector<RollCallWork> workList;
     for (const CongressInfo &congress : congressInfo_)
     {
         int congressIndex = congress.index;
@@ -412,30 +588,48 @@ void DWNominate::executeRollCallPhase(int iteration)
         int rollCallOffset = congress.rollCallOffset;
         int numRollCalls = congress.numRollCalls;
 
-        // Loop sobre roll calls del congreso
         for (int j = 0; j < numRollCalls; ++j)
         {
             int globalRollCallIndex = rollCallOffset + j;
-
-            // Verificar que el roll call existe
             if (globalRollCallIndex >= static_cast<int>(validRollCalls_.size()))
             {
                 continue;
             }
-
-            processRollCall(
-                congressIndex,
-                j,
-                globalRollCallIndex,
-                iteration,
-                legislatorOffset,
-                classificationBefore,
-                classificationAfter,
-                totalVotes);
+            workList.push_back({congressIndex, j, globalRollCallIndex, legislatorOffset});
         }
-        // Fin loop 3 (roll calls)
     }
-    // Fin loop 2 (congresos)
+
+    const int numWork = static_cast<int>(workList.size());
+
+// Procesar roll calls en paralelo con OpenMP
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic, 16) reduction(+ : totalVotes, classificationBefore, classificationAfter)
+#endif
+    for (int w = 0; w < numWork; ++w)
+    {
+        const RollCallWork &work = workList[w];
+        int localTotalVotes = 0;
+        int localClassBefore = 0;
+        int localClassAfter = 0;
+
+        processRollCallParallel(
+            work.congressIndex,
+            work.rollCallLocalIndex,
+            work.globalRollCallIndex,
+            iteration,
+            work.legislatorOffset,
+            localClassBefore,
+            localClassAfter,
+            localTotalVotes);
+
+        totalVotes += localTotalVotes;
+        classificationBefore += localClassBefore;
+        classificationAfter += localClassAfter;
+    }
+
+    // Guardar estadisticas en miembros de clase para uso posterior
+    lastTotalVotes_ = totalVotes;
+    lastClassificationAfter_ = classificationAfter;
 
     // Calcular estadisticas
     if (totalVotes > 0)
@@ -540,7 +734,24 @@ void DWNominate::processRollCall(
     else
     {
         // NS>1: Usar CUTPLANE
+        // IMPORTANTE: Solo inicializar desde CUTPLANE en la primera iteracion
+        // En Fortran: IF(IHAPPY.EQ.1) - solo primera iteracion global
+        // En iteraciones posteriores, CUTPLANE solo actualiza polarity,
+        // pero OLDZ/OLDD se mantienen de la iteracion anterior
+
+        // Verificar si ya tenemos valores inicializados (de R o anterior)
+        bool hasPreloadedValues = oldz.squaredNorm() > 1e-10;
+
         applyCutplane(numVoters, coords, voteCodes, oldz, oldd, polarity);
+
+        // Solo actualizar midpoint/spread desde CUTPLANE en primera iteracion
+        // Y SOLO si no había valores pre-cargados (e.g., de R)
+        if (iteration != config_.firstIteration || hasPreloadedValues)
+        {
+            // Restaurar valores previos - CUTPLANE solo sirvio para polarity
+            oldz = rollCallMidpoints_.row(globalRollCallIndex).transpose();
+            oldd = rollCallSpreads_.row(globalRollCallIndex).transpose();
+        }
     }
 
     // Guardar polaridad
@@ -573,6 +784,148 @@ void DWNominate::processRollCall(
     totalVotes += rcResult.totalVotes;
     classificationBefore += rcResult.totalVotes; // Aproximacion para antes
     classificationAfter += rcResult.correctClassified;
+}
+
+/**
+ * Procesa un roll call individual (version thread-safe para OpenMP).
+ * Escribe resultados en variables locales y en filas independientes de matrices.
+ */
+void DWNominate::processRollCallParallel(
+    int congressIndex,
+    int rollCallLocalIndex,
+    int globalRollCallIndex,
+    int iteration,
+    int legislatorOffset,
+    int &localClassificationBefore,
+    int &localClassificationAfter,
+    int &localTotalVotes)
+{
+    int ns = config_.numDimensions;
+    localTotalVotes = 0;
+    localClassificationBefore = 0;
+    localClassificationAfter = 0;
+
+    // Preparar datos del roll call (thread-safe: solo lecturas)
+    Eigen::MatrixXd coords;
+    std::vector<int> voteCodes;
+    std::vector<int> sortedIndices;
+    int kyes = 0;
+    int kno = 0;
+
+    int numVoters = prepareRollCallData(
+        congressIndex,
+        rollCallLocalIndex,
+        legislatorOffset,
+        coords,
+        voteCodes,
+        sortedIndices,
+        kyes,
+        kno);
+
+    if (numVoters == 0)
+    {
+        return;
+    }
+
+    // Verificar margen
+    if (!isRollCallValid(kyes, kno))
+    {
+        for (int k = 0; k < ns; ++k)
+        {
+            rollCallMidpoints_(globalRollCallIndex, k) = 0.0;
+            rollCallSpreads_(globalRollCallIndex, k) = 0.0;
+        }
+        return;
+    }
+
+    // Leer midpoint actual (cada thread lee su propia fila)
+    Eigen::VectorXd midpoint = rollCallMidpoints_.row(globalRollCallIndex).transpose();
+    normalizeToUnitSphere(midpoint);
+
+    // Variables temporales para el roll call actual
+    Eigen::VectorXd oldz = midpoint;
+    Eigen::VectorXd oldd = rollCallSpreads_.row(globalRollCallIndex).transpose();
+    CuttingPolarity polarity;
+
+    // Obtener clasificacion inicial
+    if (ns == 1)
+    {
+        // NS=1: Usar JAN11PT
+        std::vector<double> projections(numVoters);
+        for (int i = 0; i < numVoters; ++i)
+        {
+            projections[i] = coords(sortedIndices[i], 0);
+        }
+
+        double cuttingPoint = 0.0;
+        double spread = 0.5;
+        double accuracy1 = 0.0;
+        double accuracy2 = 0.0;
+
+        applyJan11pt(numVoters, projections, voteCodes,
+                     cuttingPoint, spread, polarity,
+                     accuracy1, accuracy2);
+
+        // Primera iteracion: actualizar OLDZ, OLDD desde resultados
+        if (iteration == config_.firstIteration)
+        {
+            if (std::abs(cuttingPoint) > 1.0)
+            {
+                cuttingPoint = cuttingPoint / std::abs(cuttingPoint);
+            }
+            oldz(0) = cuttingPoint;
+            oldd(0) = spread;
+        }
+    }
+    else
+    {
+        // NS>1: Usar CUTPLANE
+        // IMPORTANTE: Solo inicializar desde CUTPLANE en la primera iteracion
+        // En Fortran: IF(IHAPPY.EQ.1) - solo primera iteracion global
+
+        // Verificar si ya tenemos valores inicializados (de R o anterior)
+        bool hasPreloadedValues = oldz.squaredNorm() > 1e-10;
+
+        applyCutplane(numVoters, coords, voteCodes, oldz, oldd, polarity);
+
+        // Solo actualizar midpoint/spread desde CUTPLANE en primera iteracion
+        // Y SOLO si no había valores pre-cargados (e.g., de R)
+        if (iteration != config_.firstIteration || hasPreloadedValues)
+        {
+            // Restaurar valores previos - CUTPLANE solo sirvio para polarity
+            oldz = midpoint;
+            oldd = rollCallSpreads_.row(globalRollCallIndex).transpose();
+        }
+    }
+
+    // Guardar polaridad (thread-safe: cada thread escribe en indice diferente)
+    rollCallPolarity_[globalRollCallIndex] = polarity;
+
+    // Configuracion del optimizador
+    RollCallOptimizerConfig rcConfig;
+    rcConfig.numOuterIterations = 5;
+    rcConfig.numInnerIterations = 10;
+    rcConfig.numSearchPoints = 25;
+
+    // Ejecutar optimizacion (thread-safe: solo lee datos compartidos)
+    RollCallOptimizationResult rcResult = optimizeRollCall(
+        legislatorCoords_,
+        globalRollCallIndex,
+        oldz,
+        oldd,
+        votes_,
+        weights_,
+        normalCDF_,
+        rcConfig);
+
+    // Actualizar parametros (thread-safe: cada thread escribe en fila diferente)
+    rollCallMidpoints_.row(globalRollCallIndex) = rcResult.midpoint.transpose();
+    rollCallSpreads_.row(globalRollCallIndex) = rcResult.spread.transpose();
+
+    // Retornar contadores locales para reduccion
+    localTotalVotes = rcResult.totalVotes;
+    localClassificationBefore = rcResult.totalVotes;
+    localClassificationAfter = rcResult.correctClassified;
 }
 
 // Prepara datos para un roll call.
@@ -881,6 +1234,9 @@ void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &prese
 
     // Reconstruir coordenadas en legislatorCoords_ desde coeficientes optimizados
     reconstructLegislatorCoords(presence, legResult.coefficients);
+
+    // Guardar coeficientes temporales para reconstruccion posterior por periodo
+    temporalCoefficients_[uniqueId] = legResult.coefficients.beta;
 
     // Actualizar varianzas
 

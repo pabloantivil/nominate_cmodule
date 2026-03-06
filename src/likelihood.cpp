@@ -163,8 +163,8 @@ LikelihoodResult computeLogLikelihood(
                 continue; // Skip votaciones invalidas (<2.5% en minoria)
             }
 
-            // Fortran: IF(RCVOTE9(I+KTOTP,J).EQV..FALSE.)THEN
-            if (votes.isMissing(i, j))
+            // VERSION SIN BOUNDS CHECK para hot loop
+            if (votes.isMissingUnsafe(i, j))
             {
                 continue; // Skip missing data (abstencion/ausencia)
             }
@@ -182,8 +182,8 @@ LikelihoodResult computeLogLikelihood(
                 rollCallParams[j].spread,
                 false); // -spread
 
-            // Determina cual es el voto observado y cual el contrario
-            bool observedVote = votes.getVote(i, j);
+            // Determina cual es el voto observado y cual el contrario - VERSION SIN BOUNDS CHECK
+            bool observedVote = votes.getVoteUnsafe(i, j);
             double utilityChoice, utilityOpposite;
             double xcc; // +1 si voto Si, -1 si voto No
 
@@ -265,6 +265,185 @@ LikelihoodResult computeLogLikelihood(
     // Fortran: XXPLOG = XXPLOG + YPLOG (ya acumulado en el loop)
     // XPLOG = XXPLOG
     // Ya esta en result.logLikelihood
+
+    return result;
+}
+
+// ===========================================================================
+// IMPLEMENTACION OPTIMIZADA - CORRECCIONES A, B, C, E
+// ===========================================================================
+//
+// CORRECCION A: Vectores de tamano fijo (elimina heap allocations)
+// CORRECCION B: Buffer de trabajo reutilizable
+// CORRECCION C: Pesos al cuadrado pre-cacheados
+// CORRECCION E: Calculos inline de distancia y utilidad
+//
+// Logica matematica: INTACTA - Solo optimizacion estructural
+// ===========================================================================
+
+LikelihoodResult computeLogLikelihoodOptimized(
+    const Eigen::MatrixXd &legislatorCoords,
+    const std::vector<RollCallParameters> &rollCallParams,
+    const VoteMatrix &votes,
+    const Eigen::VectorXd &weights,
+    const NormalCDF &normalCDF,
+    const std::vector<bool> &validRollCalls,
+    LikelihoodWorkBuffer &buffer)
+{
+    // Validacion de dimensiones
+    const size_t numLegislators = legislatorCoords.rows();
+    const int numDimensions = static_cast<int>(legislatorCoords.cols());
+    const size_t numRollCalls = rollCallParams.size();
+
+    if (votes.getNumLegislators() != numLegislators)
+    {
+        throw std::invalid_argument("Dimension de legisladores inconsistente");
+    }
+    if (votes.getNumRollCalls() != numRollCalls)
+    {
+        throw std::invalid_argument("Dimension de votaciones inconsistente");
+    }
+    if (validRollCalls.size() != numRollCalls)
+    {
+        throw std::invalid_argument("Dimension de validRollCalls inconsistente");
+    }
+    if (static_cast<size_t>(weights.size()) != static_cast<size_t>(numDimensions + 1))
+    {
+        throw std::invalid_argument("Dimension de weights incorrecta (debe ser NS+1)");
+    }
+    if (numDimensions > MAX_DIMENSIONS)
+    {
+        throw std::invalid_argument("Numero de dimensiones excede MAX_DIMENSIONS");
+    }
+
+    // CORRECCION C: Cachear pesos al cuadrado UNA vez
+    buffer.cacheWeights(weights, numDimensions);
+
+    // Inicializacion de resultado
+    LikelihoodResult result;
+    result.logLikelihood = 0.0;
+    result.legislatorLL.resize(numLegislators, 0.0);
+    result.legislatorVotes.resize(numLegislators, 0);
+    result.legislatorErrors.resize(numLegislators, 0);
+
+    // Extrae beta (ultimo peso)
+    const double beta = weights(numDimensions);
+
+    for (size_t i = 0; i < numLegislators; ++i)
+    {
+        double legislatorLogLikelihood = 0.0;
+        int legislatorValidVotes = 0;
+        int legislatorWrongPredictions = 0;
+
+        for (size_t j = 0; j < numRollCalls; ++j)
+        {
+            if (!validRollCalls[j])
+            {
+                continue;
+            }
+
+            // VERSION SIN BOUNDS CHECK para hot loop
+            if (votes.isMissingUnsafe(i, j))
+            {
+                continue;
+            }
+
+            // CORRECCION E: Calculos inline de distancia
+            // Sin allocation de VectorXd, usando arrays del buffer
+            const auto &midpoint = rollCallParams[j].midpoint;
+            const auto &spread = rollCallParams[j].spread;
+
+            // Calcular distancias cuadradas inline (CORRECCION E)
+            for (int k = 0; k < numDimensions; ++k)
+            {
+                double coord_k = legislatorCoords(i, k);
+                double diffYes = coord_k - midpoint(k) + spread(k);
+                double diffNo = coord_k - midpoint(k) - spread(k);
+                buffer.distYes[k] = diffYes * diffYes;
+                buffer.distNo[k] = diffNo * diffNo;
+            }
+
+            // Determina cual es el voto observado y cual el contrario - VERSION SIN BOUNDS CHECK
+            bool observedVote = votes.getVoteUnsafe(i, j);
+
+            // CORRECCION E: Calcular utilidades inline usando pesos cacheados
+            double utilityChoice = 0.0;
+            double utilityOpposite = 0.0;
+            double xcc;
+
+            if (observedVote)
+            {
+                for (int k = 0; k < numDimensions; ++k)
+                {
+                    // CORRECCION C: Usar pesos pre-cacheados
+                    utilityChoice += -buffer.weightsSquared[k] * buffer.distYes[k];
+                    utilityOpposite += -buffer.weightsSquared[k] * buffer.distNo[k];
+                }
+                xcc = +1.0;
+            }
+            else
+            {
+                for (int k = 0; k < numDimensions; ++k)
+                {
+                    utilityChoice += -buffer.weightsSquared[k] * buffer.distNo[k];
+                    utilityOpposite += -buffer.weightsSquared[k] * buffer.distYes[k];
+                }
+                xcc = -1.0;
+            }
+
+            // Calcula Z_ij segun el modelo probit
+            double zs = beta * (std::exp(utilityChoice) - std::exp(utilityOpposite));
+
+            // Estadisticas de clasificacion deterministica
+            bool correctClassification = (std::abs(utilityChoice) <= std::abs(utilityOpposite));
+
+            result.stats.totalVotes++;
+            if (correctClassification)
+            {
+                result.stats.correctClassified++;
+            }
+
+            // Tabla de confusion 2x2
+            if (correctClassification && xcc == +1.0)
+            {
+                result.stats.truePositives++;
+            }
+            else if (!correctClassification && xcc == +1.0)
+            {
+                result.stats.falseNegatives++;
+            }
+            else if (!correctClassification && xcc == -1.0)
+            {
+                result.stats.falsePositives++;
+            }
+            else if (correctClassification && xcc == -1.0)
+            {
+                result.stats.trueNegatives++;
+            }
+
+            if (zs > 0.0)
+            {
+                result.stats.positiveUtility++;
+            }
+
+            // Lookup en tabla CDF precomputada
+            double logCdfValue = normalCDF.logCdf(zs);
+
+            if (zs < 0.0)
+            {
+                legislatorWrongPredictions++;
+            }
+
+            // Acumula log-likelihood
+            result.logLikelihood += logCdfValue;
+            legislatorLogLikelihood += logCdfValue;
+            legislatorValidVotes++;
+        }
+
+        result.legislatorLL[i] = legislatorLogLikelihood;
+        result.legislatorVotes[i] = legislatorValidVotes;
+        result.legislatorErrors[i] = legislatorWrongPredictions;
+    }
 
     return result;
 }
