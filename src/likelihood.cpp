@@ -4,6 +4,10 @@
 #include <stdexcept>
 #include <limits>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /**
  * @file likelihood.cpp
  *  Implementacion del calculo de log-likelihood para DW-NOMINATE.
@@ -269,17 +273,11 @@ LikelihoodResult computeLogLikelihood(
     return result;
 }
 
-// ===========================================================================
-// IMPLEMENTACION OPTIMIZADA - CORRECCIONES A, B, C, E
-// ===========================================================================
-//
-// CORRECCION A: Vectores de tamano fijo (elimina heap allocations)
-// CORRECCION B: Buffer de trabajo reutilizable
-// CORRECCION C: Pesos al cuadrado pre-cacheados
-// CORRECCION E: Calculos inline de distancia y utilidad
-//
-// Logica matematica: INTACTA - Solo optimizacion estructural
-// ===========================================================================
+// IMPLEMENTACION OPTIMIZADA
+// - Vectores de tamano fijo (elimina heap allocations)
+// - Buffer de trabajo reutilizable
+// - Pesos al cuadrado pre-cacheados
+// - Calculos inline de distancia y utilidad
 
 LikelihoodResult computeLogLikelihoodOptimized(
     const Eigen::MatrixXd &legislatorCoords,
@@ -444,6 +442,162 @@ LikelihoodResult computeLogLikelihoodOptimized(
         result.legislatorVotes[i] = legislatorValidVotes;
         result.legislatorErrors[i] = legislatorWrongPredictions;
     }
+
+    return result;
+}
+
+// VERSION PARALELA - OPENMP
+LikelihoodResult computeLogLikelihoodParallel(
+    const Eigen::MatrixXd &legislatorCoords,
+    const std::vector<RollCallParameters> &rollCallParams,
+    const VoteMatrix &votes,
+    const Eigen::VectorXd &weights,
+    const NormalCDF &normalCDF,
+    const std::vector<bool> &validRollCalls)
+{
+    const int numLegislators = static_cast<int>(legislatorCoords.rows());
+    const int numDimensions = static_cast<int>(legislatorCoords.cols());
+    const size_t numRollCalls = rollCallParams.size();
+
+    // Validaciones
+    if (votes.getNumLegislators() != static_cast<size_t>(numLegislators))
+    {
+        throw std::invalid_argument("Dimension de legisladores inconsistente");
+    }
+    if (votes.getNumRollCalls() != numRollCalls)
+    {
+        throw std::invalid_argument("Dimension de votaciones inconsistente");
+    }
+    if (validRollCalls.size() != numRollCalls)
+    {
+        throw std::invalid_argument("Dimension de validRollCalls inconsistente");
+    }
+    if (numDimensions > MAX_DIMENSIONS)
+    {
+        throw std::invalid_argument("Numero de dimensiones excede MAX_DIMENSIONS");
+    }
+
+    // Resultado
+    LikelihoodResult result;
+    result.logLikelihood = 0.0;
+    result.legislatorLL.resize(numLegislators, 0.0);
+    result.legislatorVotes.resize(numLegislators, 0);
+    result.legislatorErrors.resize(numLegislators, 0);
+
+    const double beta = weights(numDimensions);
+
+    // Pre-calcular pesos al cuadrado (compartido entre threads)
+    std::array<double, MAX_DIMENSIONS> weightsSquared;
+    for (int k = 0; k < numDimensions && k < MAX_DIMENSIONS; ++k)
+    {
+        weightsSquared[k] = weights(k) * weights(k);
+    }
+
+    // Variables para reduction de OpenMP
+    double totalLL = 0.0;
+    int totalVotes = 0;
+    int correctClassified = 0;
+    int positiveUtility = 0;
+
+#ifdef _OPENMP
+#pragma omp parallel reduction(+ : totalLL, totalVotes, correctClassified, positiveUtility)
+#endif
+    {
+        // Buffer thread-local para temporales
+        std::array<double, MAX_DIMENSIONS> distYes;
+        std::array<double, MAX_DIMENSIONS> distNo;
+
+#ifdef _OPENMP
+#pragma omp for schedule(static)
+#endif
+        for (int i = 0; i < numLegislators; ++i)
+        {
+            double legislatorLogLikelihood = 0.0;
+            int legislatorValidVotes = 0;
+            int legislatorWrongPredictions = 0;
+
+            for (size_t j = 0; j < numRollCalls; ++j)
+            {
+                if (!validRollCalls[j])
+                {
+                    continue;
+                }
+
+                if (votes.isMissingUnsafe(i, j))
+                {
+                    continue;
+                }
+
+                const auto &midpoint = rollCallParams[j].midpoint;
+                const auto &spread = rollCallParams[j].spread;
+
+                // Calcular distancias cuadradas inline
+                for (int k = 0; k < numDimensions; ++k)
+                {
+                    double coord_k = legislatorCoords(i, k);
+                    double diffYes = coord_k - midpoint(k) + spread(k);
+                    double diffNo = coord_k - midpoint(k) - spread(k);
+                    distYes[k] = diffYes * diffYes;
+                    distNo[k] = diffNo * diffNo;
+                }
+
+                bool observedVote = votes.getVoteUnsafe(i, j);
+
+                double utilityChoice = 0.0;
+                double utilityOpposite = 0.0;
+
+                if (observedVote)
+                {
+                    for (int k = 0; k < numDimensions; ++k)
+                    {
+                        utilityChoice += -weightsSquared[k] * distYes[k];
+                        utilityOpposite += -weightsSquared[k] * distNo[k];
+                    }
+                }
+                else
+                {
+                    for (int k = 0; k < numDimensions; ++k)
+                    {
+                        utilityChoice += -weightsSquared[k] * distNo[k];
+                        utilityOpposite += -weightsSquared[k] * distYes[k];
+                    }
+                }
+
+                double zs = beta * (std::exp(utilityChoice) - std::exp(utilityOpposite));
+
+                bool correct = (std::abs(utilityChoice) <= std::abs(utilityOpposite));
+                if (correct)
+                {
+                    correctClassified++;
+                }
+                if (zs > 0.0)
+                {
+                    positiveUtility++;
+                }
+
+                double logCdfValue = normalCDF.logCdf(zs);
+
+                if (zs < 0.0)
+                {
+                    legislatorWrongPredictions++;
+                }
+
+                legislatorLogLikelihood += logCdfValue;
+                legislatorValidVotes++;
+                totalVotes++;
+            }
+
+            totalLL += legislatorLogLikelihood;
+            result.legislatorLL[i] = legislatorLogLikelihood;
+            result.legislatorVotes[i] = legislatorValidVotes;
+            result.legislatorErrors[i] = legislatorWrongPredictions;
+        }
+    }
+
+    result.logLikelihood = totalLL;
+    result.stats.totalVotes = totalVotes;
+    result.stats.correctClassified = correctClassified;
+    result.stats.positiveUtility = positiveUtility;
 
     return result;
 }

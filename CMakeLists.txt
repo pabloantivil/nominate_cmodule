@@ -174,13 +174,33 @@ add_executable(test_chile_endtoend
 )
 target_compile_features(test_chile_endtoend PRIVATE cxx_std_17)
 
+# Test End-to-End Chile WNOMINATE (iniciando desde coordenadas WNOMINATE)
+add_executable(test_chile_endtoend_copy
+    tests/test_chile_endtoend_copy.cpp
+    src/csv_loader.cpp
+    src/dwnominate.cpp
+    src/likelihood.cpp
+    src/normal_cdf.cpp
+    src/cutting_plane.cpp
+    src/cutting_point.cpp
+    src/grid_optimizer.cpp
+    src/rollcall_optimizer.cpp
+    src/rollcall_derivatives.cpp
+    src/optimize_legislators.cpp
+    src/legislator_derivatives.cpp
+    src/simple_ols.cpp
+)
+target_compile_features(test_chile_endtoend_copy PRIVATE cxx_std_17)
+
 # Configuración OpenMP
 if(OpenMP_CXX_FOUND)
     # Enlazar OpenMP a ambos ejecutables
     target_link_libraries(nominate_cmodule OpenMP::OpenMP_CXX)
     target_link_libraries(test_chile_endtoend OpenMP::OpenMP_CXX)
+    target_link_libraries(test_chile_endtoend_copy OpenMP::OpenMP_CXX)
     target_compile_definitions(nominate_cmodule PRIVATE USE_OPENMP)
     target_compile_definitions(test_chile_endtoend PRIVATE USE_OPENMP)
+    target_compile_definitions(test_chile_endtoend_copy PRIVATE USE_OPENMP)
     message(STATUS "OpenMP ${OpenMP_CXX_VERSION} encontrado y configurado")
     message(STATUS "OpenMP flags: ${OpenMP_CXX_FLAGS}")
 else()
@@ -193,6 +213,7 @@ target_compile_features(nominate_cmodule PRIVATE cxx_std_14)
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(nominate_cmodule PRIVATE -O3 -march=native)
     target_compile_options(test_chile_endtoend PRIVATE -O3 -march=native -DNDEBUG)
+    target_compile_options(test_chile_endtoend_copy PRIVATE -O3 -march=native -DNDEBUG)
 endif()
 
 # Información de NLopt
@@ -207,8 +228,10 @@ if(BLAS_FOUND)
     message(STATUS "BLAS encontrado: ${BLAS_LIBRARIES}")
     target_link_libraries(nominate_cmodule ${BLAS_LIBRARIES})
     target_link_libraries(test_chile_endtoend ${BLAS_LIBRARIES})
+    target_link_libraries(test_chile_endtoend_copy ${BLAS_LIBRARIES})
     target_compile_definitions(nominate_cmodule PRIVATE EIGEN_USE_BLAS)
     target_compile_definitions(test_chile_endtoend PRIVATE EIGEN_USE_BLAS)
+    target_compile_definitions(test_chile_endtoend_copy PRIVATE EIGEN_USE_BLAS)
 endif()
 
 # Flags de optimización agresiva
@@ -216,6 +239,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(nominate_cmodule PRIVATE 
         -O3 -march=native -ffast-math -DNDEBUG)
     target_compile_options(test_chile_endtoend PRIVATE 
+        -O3 -march=native -ffast-math -DNDEBUG)
+    target_compile_options(test_chile_endtoend_copy PRIVATE 
         -O3 -march=native -ffast-math -DNDEBUG)
 endif()
 

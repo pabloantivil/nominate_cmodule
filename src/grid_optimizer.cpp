@@ -12,6 +12,7 @@
  * OPTIMIZACIONES IMPLEMENTADAS:
  * - Buffer de trabajo reutilizable para evaluaciones de likelihood
  * - Evita allocations dinamicas en hot loops
+ * - Paralelización con OpenMP en evaluaciones de likelihood
  */
 
 #include "grid_optimizer.hpp"
@@ -20,13 +21,12 @@
 #include <iomanip>
 #include <stdexcept>
 
-// Buffer global de trabajo para evaluaciones (CORRECCION B)
-// Thread-local para seguridad en caso de uso con OpenMP
-static thread_local LikelihoodWorkBuffer g_likelihoodBuffer;
+// Buffer global obsoleto - ahora usamos version paralela
+// static thread_local LikelihoodWorkBuffer g_likelihoodBuffer;
 
 /**
- * Evalua log-likelihood usando version OPTIMIZADA.
- * OPTIMIZADO: Usa buffer reutilizable para evitar allocations.
+ * Evalua log-likelihood usando version PARALELA con OpenMP.
+ * OPTIMIZADO: Usa múltiples threads para procesar legisladores.
  */
 static double evaluateLogLikelihood(const LikelihoodContext &ctx)
 {
@@ -38,15 +38,14 @@ static double evaluateLogLikelihood(const LikelihoodContext &ctx)
             "Dimensiones inconsistentes entre weights y legislatorCoords");
     }
 
-    // OPTIMIZADO: Usar version con buffer pre-allocated
-    LikelihoodResult result = computeLogLikelihoodOptimized(
+    // OPTIMIZADO: Usar version PARALELA con OpenMP
+    LikelihoodResult result = computeLogLikelihoodParallel(
         ctx.legislatorCoords,
         ctx.rollCallParams,
         ctx.votes,
         ctx.weights,
         ctx.normalCDF,
-        ctx.validRollCalls,
-        g_likelihoodBuffer);
+        ctx.validRollCalls);
 
     return result.logLikelihood;
 }

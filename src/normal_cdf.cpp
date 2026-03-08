@@ -3,8 +3,7 @@
 #include <algorithm>
 
 NormalCDF::NormalCDF()
-    : tableSize_(2 * NDEVIT - 1), resolution_(XDEVIT), table_(TABLE_ROWS * 4, 0.0) 
-      ,
+    : tableSize_(2 * NDEVIT - 1), resolution_(XDEVIT), table_(TABLE_ROWS * 4, 0.0),
       minZ_(0.0), maxZ_(0.0)
 {
     initializeTable();
@@ -19,7 +18,6 @@ void NormalCDF::initializeTable()
     // Matrices temporales equivalentes a YY y CUMNML en Fortran
     std::vector<double> yy(NDEVIT);
     std::vector<double> cumnml(NDEVIT);
-
 
     for (size_t i = 0; i < NDEVIT; ++i)
     {
@@ -87,26 +85,18 @@ double NormalCDF::interpolate(double z, int column) const
         return table_[(tableSize_ - 1) * 4 + column];
     }
 
-    // Encontrar posición en la tabla mediante búsqueda lineal (simple y robusta)
-    size_t lowerIndex = 0;
-    for (size_t i = 0; i < tableSize_ - 1; ++i)
+    // OPTIMIZADO: Cálculo directo de índice O(1) en lugar de búsqueda lineal O(n)
+    // La tabla tiene valores z desde minZ_ (-5.0) hasta maxZ_ (+5.0)
+    // con espaciado de 1/resolution_ (0.0001)
+    double indexFloat = (z - minZ_) * resolution_;
+    size_t lowerIndex = static_cast<size_t>(indexFloat);
+
+    // Asegurar que no excedemos los límites
+    if (lowerIndex >= tableSize_ - 1)
     {
-        double z_i = table_[i * 4 + 0];
-        double z_next = table_[(i + 1) * 4 + 0];
-
-        if (z >= z_i && z <= z_next)
-        {
-            lowerIndex = i;
-            break;
-        }
+        lowerIndex = tableSize_ - 2;
     }
-
     size_t upperIndex = lowerIndex + 1;
-    if (upperIndex >= tableSize_)
-    {
-        upperIndex = tableSize_ - 1;
-        lowerIndex = upperIndex > 0 ? upperIndex - 1 : 0;
-    }
 
     // Obtener los valores z y los valores de la columna objetivo
     double z_lower = table_[lowerIndex * 4 + 0];
@@ -151,6 +141,67 @@ double NormalCDF::gaussOverCdf(double z) const
     }
     return std::exp(-z * z / 2.0) / cdf_val;
 }
+
+std::pair<double, double> NormalCDF::logCdfAndMills(double z) const
+{
+    // OPTIMIZADO: Cálculo directo de índice O(1) + una sola búsqueda para ambos valores
+
+    // Manejar valores fuera de límites
+    if (z <= minZ_)
+    {
+        double logCdfVal = table_[0 * 4 + 2];
+        double cdfVal = table_[0 * 4 + 1];
+        if (cdfVal < 1e-300)
+            cdfVal = 1e-300;
+        double millsVal = std::exp(-z * z / 2.0) / cdfVal;
+        return {logCdfVal, millsVal};
+    }
+    if (z >= maxZ_)
+    {
+        double logCdfVal = table_[(tableSize_ - 1) * 4 + 2];
+        double cdfVal = table_[(tableSize_ - 1) * 4 + 1];
+        if (cdfVal < 1e-300)
+            cdfVal = 1e-300;
+        double millsVal = std::exp(-z * z / 2.0) / cdfVal;
+        return {logCdfVal, millsVal};
+    }
+
+    // OPTIMIZADO: Cálculo directo de índice O(1)
+    double indexFloat = (z - minZ_) * resolution_;
+    size_t lowerIndex = static_cast<size_t>(indexFloat);
+    if (lowerIndex >= tableSize_ - 1)
+    {
+        lowerIndex = tableSize_ - 2;
+    }
+    size_t upperIndex = lowerIndex + 1;
+
+    // Obtener los valores z
+    double z_lower = table_[lowerIndex * 4 + 0];
+    double z_upper = table_[upperIndex * 4 + 0];
+
+    // Calcular factor de interpolación
+    double t = 0.0;
+    if (std::abs(z_upper - z_lower) >= 1e-10)
+    {
+        t = (z - z_lower) / (z_upper - z_lower);
+    }
+
+    // Interpolar logCdf (columna 2)
+    double logCdf_lower = table_[lowerIndex * 4 + 2];
+    double logCdf_upper = table_[upperIndex * 4 + 2];
+    double logCdfVal = logCdf_lower + t * (logCdf_upper - logCdf_lower);
+
+    // Interpolar CDF (columna 1) para calcular Mills ratio
+    double cdf_lower = table_[lowerIndex * 4 + 1];
+    double cdf_upper = table_[upperIndex * 4 + 1];
+    double cdfVal = cdf_lower + t * (cdf_upper - cdf_lower);
+    if (cdfVal < 1e-300)
+        cdfVal = 1e-300;
+    double millsVal = std::exp(-z * z / 2.0) / cdfVal;
+
+    return {logCdfVal, millsVal};
+}
+
 double NormalCDF::getZ(size_t index) const
 {
     if (index >= tableSize_)

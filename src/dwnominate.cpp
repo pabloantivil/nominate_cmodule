@@ -762,7 +762,7 @@ void DWNominate::processRollCall(
     RollCallOptimizerConfig rcConfig;
     rcConfig.numOuterIterations = 5;
     rcConfig.numInnerIterations = 10;
-    rcConfig.numSearchPoints = 25;
+    rcConfig.numSearchPoints = 10; // OPTIMIZADO: reducido de 25 a 10
 
     // Ejecutar optimizacion
     // Fortran: CALL RCINT2(...)
@@ -905,7 +905,7 @@ void DWNominate::processRollCallParallel(
     RollCallOptimizerConfig rcConfig;
     rcConfig.numOuterIterations = 5;
     rcConfig.numInnerIterations = 10;
-    rcConfig.numSearchPoints = 25;
+    rcConfig.numSearchPoints = 10; // OPTIMIZADO: reducido de 25 a 10
 
     // Ejecutar optimizacion (thread-safe: solo lee datos compartidos)
     RollCallOptimizationResult rcResult = optimizeRollCall(
@@ -1142,13 +1142,16 @@ void DWNominate::applyCutplane(
 // FASE DE LEGISLADORES
 void DWNominate::executeLegislatorPhase()
 {
-    int uniqueCount = 0;
+    // PASO 1: Recolectar legisladores válidos (secuencial)
+    // 1. Pre-inicializar temporalCoefficients_ (std::map no es thread-safe)
+    // 2. Crear un vector para iterar con OpenMP (requiere random access)
 
-    // Loop sobre todos los IDs posibles
+    std::vector<int> validLegislatorIds;
+    validLegislatorIds.reserve(legislatorPresence_.size());
+
     for (int uniqueId = 0; uniqueId < static_cast<int>(legislatorPresence_.size());
          ++uniqueId)
     {
-
         const LegislatorPresence &presence = legislatorPresence_[uniqueId];
 
         // Verificar si este legislador tiene presencia en algun congreso
@@ -1174,14 +1177,37 @@ void DWNominate::executeLegislatorPhase()
             continue;
         }
 
-        uniqueCount++;
+        validLegislatorIds.push_back(uniqueId);
 
-        // Procesar legislador
+        // Pre-inicializar entrada en temporalCoefficients_ para evitar
+        // reallocaciones concurrentes en std::map (no es thread-safe)
+        temporalCoefficients_[uniqueId] = Eigen::MatrixXd();
+    }
+
+    const int numValidLegislators = static_cast<int>(validLegislatorIds.size());
+
+    // =========================================================================
+    // PASO 2: Procesar legisladores en paralelo
+    // =========================================================================
+    // Cada legislador es independiente:
+    // - Lee de: legislatorCoords_, rollCallMidpoints_, rollCallSpreads_,
+    //           votes_, validRollCalls_, weights_, normalCDF_
+    // - Escribe a posiciones únicas en: legislatorCoords_,
+    //           temporalCoefficients_, legislatorVariances_,
+    //           legislatorLogLikelihood_, legislatorVoteCounts_
+
+#pragma omp parallel for schedule(dynamic, 4)
+    for (int i = 0; i < numValidLegislators; ++i)
+    {
+        int uniqueId = validLegislatorIds[i];
+        const LegislatorPresence &presence = legislatorPresence_[uniqueId];
+
+        // Procesar legislador (cada uno escribe a posiciones únicas)
         processLegislator(uniqueId, presence);
     }
-    // Fin loop 48
+    // Fin loop paralelo
 
-    log("  Legisladores unicos procesados: " + std::to_string(uniqueCount));
+    log("  Legisladores unicos procesados: " + std::to_string(numValidLegislators));
 }
 
 /**
@@ -1212,9 +1238,10 @@ void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &prese
 
     // Configuracion del optimizador
     LegislatorOptimizerConfig legConfig;
-    legConfig.maxIterations = 10;
-    legConfig.numSearchPointsConst = 25;
-    legConfig.numSearchPointsTemporal = 10;
+    legConfig.maxIterations = 15;           // Mas iteraciones para convergencia de Dim2
+    legConfig.numSearchPointsConst = 15;    // Balance entre precision y velocidad
+    legConfig.numSearchPointsTemporal = 25; // CRITICO: igual a Fortran para capturar β₁(dim2)
+    legConfig.stepUnit = 0.02;              // DOBLE de Fortran para explorar rango mayor
 
     // Ejecutar optimizacion
     LegislatorOptimizationResult legResult = optimizeLegislator(

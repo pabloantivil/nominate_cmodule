@@ -415,11 +415,8 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
                 result.positiveZS++;
             }
 
-            // Lookup CDF
-            double logCdf = normalCDF.logCdf(zs);
-
-            // Calcular Mills ratio
-            double millsRatio = normalCDF.gaussOverCdf(zs);
+            // OPTIMIZADO: Una sola búsqueda para logCdf y millsRatio
+            auto [logCdf, millsRatio] = normalCDF.logCdfAndMills(zs);
 
             // Actualizar log-likelihood
             result.logLikelihood += logCdf;

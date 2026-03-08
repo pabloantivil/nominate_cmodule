@@ -1,14 +1,6 @@
 /**
  * @file cutting_point.hpp
  * Algoritmos de punto de corte optimo para clasificacion 1D (JAN1PT/JAN11PT).
- *
- * JAN1PT y JAN11PT encuentran el punto de corte optimo en una dimension para
- * clasificar los votos de una votacion nominal.
- *
- * Diferencias entre JAN1PT y JAN11PT:
- * - JAN1PT (NOTE=2): Prueba ambas polaridades y selecciona la mejor
- * - JAN11PT (NOTE=1): Usa polaridad fija pasada como parametro
- *
  */
 
 #ifndef CUTTING_POINT_HPP
@@ -18,9 +10,7 @@
 #include <Eigen/Dense>
 #include <vector>
 
-/**
- *  Codigos de voto en el sistema DW-NOMINATE.
- */
+// Codigos de voto en el sistema DW-NOMINATE.
 namespace VoteCode
 {
     constexpr int YES = 1;     // Voto afirmativo
@@ -28,14 +18,7 @@ namespace VoteCode
     constexpr int MISSING = 9; // Voto ausente/abstencion
 }
 
-/**
- * Modos de operacion para JAN1PT.
- *
- * IROTC en el codigo Fortran controla el comportamiento:
- * - NORMAL: Probar ambas polaridades, calcular centroides
- * - SINGLE_POLARITY: Solo probar KCUT=1/LCUT=6
- * - ROTATION_MODE: Modo especial para SEARCH/rotaciones
- */
+// Modos de operacion para JAN1PT.
 enum class CuttingPointMode
 {
     NORMAL = 0,          // IROTC=0: Probar ambas polaridades, calcular centroides
@@ -45,7 +28,6 @@ enum class CuttingPointMode
 
 /**
  * Polaridad del punto de corte.
- *
  * Define que tipo de voto se espera en cada lado del corte.
  */
 struct CuttingPolarity
@@ -61,12 +43,7 @@ struct CuttingPolarity
 
 /**
  * Conteos de clasificacion para un punto de corte.
- *
  * Corresponde a la matriz de confusion 2x2:
- *              Prediccion
- *            Low   |  High
- * Real Low   JCL   |  JEL
- * Real High  JEH   |  JCH
  */
 struct ClassificationCounts
 {
@@ -93,12 +70,7 @@ struct ClassificationCounts
     }
 };
 
-/**
- * Centroides de cada grupo de clasificacion.
- *
- * Coordenadas promedio de los legisladores en cada categoria.
- * Solo se calcula cuando mode == NORMAL.
- */
+// Centroides de cada grupo de clasificacion.
 struct GroupCentroids
 {
     Eigen::VectorXd correctLow;  // XJCL: Centroide de correctos en lado bajo
@@ -138,9 +110,7 @@ struct CuttingPointCandidates
     size_t size() const { return positions.size(); }
 };
 
-/**
- * Resultado del algoritmo de punto de corte optimo.
- */
+// Resultado del algoritmo de punto de corte optimo.
 struct CuttingPointResult
 {
     // Punto de corte optimo
@@ -201,9 +171,6 @@ CuttingPointResult findCuttingPoint1D(
 
 /**
  * Version simplificada sin calculo de centroides.
- *
- * Util para busquedas rapidas donde solo se necesita el punto de corte
- * y la clasificacion, sin las coordenadas de centroides.
  *
  * @param projections Proyecciones ordenadas
  * @param votes Votos reordenados

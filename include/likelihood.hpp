@@ -9,29 +9,18 @@
 
 /**
  * Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
- *
- * OPTIMIZACIONES IMPLEMENTADAS:
- * - Correccion A: Vectores de tamano fijo (stack allocation)
- * - Correccion B: Buffers de trabajo pre-allocated
- * - Correccion C: Pesos al cuadrado cacheados
- * - Correccion E: Calculos inline de distancia
  */
 
-// ===========================================================================
-// CORRECCION A: Constante maxima de dimensiones para arrays en stack
-// ===========================================================================
 constexpr int MAX_DIMENSIONS = 4; // DW-NOMINATE tipicamente usa 1-2 dimensiones
 
-/**
- * Buffer de trabajo pre-allocated para evitar allocations dinamicas.
- * CORRECCION B: Se reutiliza en cada llamada a computeLogLikelihood.
- */
+
+// Buffer de trabajo pre-allocated para evitar allocations dinamicas.
 struct LikelihoodWorkBuffer
 {
     // CORRECCION A: Arrays de tamano fijo en stack
     std::array<double, MAX_DIMENSIONS> distYes;
     std::array<double, MAX_DIMENSIONS> distNo;
-    std::array<double, MAX_DIMENSIONS> weightsSquared; // CORRECCION C: Pesos cacheados
+    std::array<double, MAX_DIMENSIONS> weightsSquared; // Pesos cacheados
     int numDimensions;
 
     LikelihoodWorkBuffer() : numDimensions(0)
@@ -41,7 +30,7 @@ struct LikelihoodWorkBuffer
         weightsSquared.fill(0.0);
     }
 
-    // CORRECCION C: Pre-calcular pesos al cuadrado
+    // Pre-calcular pesos al cuadrado
     void cacheWeights(const Eigen::VectorXd &weights, int ns)
     {
         numDimensions = ns;
@@ -52,9 +41,7 @@ struct LikelihoodWorkBuffer
     }
 };
 
-/**
- *  Estructura para almacenar parametros de una votacion (roll call)
- */
+// Estructura para almacenar parametros de una votacion (roll call)
 struct RollCallParameters
 {
     Eigen::VectorXd midpoint; // ZMID: punto medio del plano de corte
@@ -69,7 +56,6 @@ struct RollCallParameters
 
 /**
  * Matriz de votos con manejo de missing data.
- *
  * Equivalente a RCVOTE1 (voto observado) y RCVOTE9 (missing data mask) en Fortran
  */
 class VoteMatrix
@@ -202,16 +188,12 @@ LikelihoodResult computeLogLikelihood(
     const NormalCDF &normalCDF,
     const std::vector<bool> &validRollCalls);
 
-// ===========================================================================
-// VERSION OPTIMIZADA - CORRECCIONES A, B, C, E
-// ===========================================================================
 
 /**
  * Calcula log-likelihood usando optimizaciones estructurales.
  *
  * OPTIMIZADO: Elimina allocations dinamicas en hot loops.
  * Usa arrays de tamano fijo y pesos pre-cacheados.
- *
  * @param legislatorCoords Coordenadas de legisladores
  * @param rollCallParams Parametros de roll calls
  * @param votes Matriz de votos
@@ -229,5 +211,26 @@ LikelihoodResult computeLogLikelihoodOptimized(
     const NormalCDF &normalCDF,
     const std::vector<bool> &validRollCalls,
     LikelihoodWorkBuffer &buffer);
+
+/**
+ * OPTIMIZADO + PARALELIZADO: Calcula log-likelihood con OpenMP.
+ * Paraleliza el loop sobre legisladores usando OpenMP.
+ * Cada thread tiene su propio buffer thread_local.
+ *
+ * @param legislatorCoords Coordenadas de legisladores
+ * @param rollCallParams Parametros de roll calls
+ * @param votes Matriz de votos
+ * @param weights Pesos dimensionales [w1..wNS, beta]
+ * @param normalCDF Tabla CDF
+ * @param validRollCalls Mascara de roll calls validos
+ * @return Resultado con log-likelihood y estadisticas
+ */
+LikelihoodResult computeLogLikelihoodParallel(
+    const Eigen::MatrixXd &legislatorCoords,
+    const std::vector<RollCallParameters> &rollCallParams,
+    const VoteMatrix &votes,
+    const Eigen::VectorXd &weights,
+    const NormalCDF &normalCDF,
+    const std::vector<bool> &validRollCalls);
 
 #endif // LIKELIHOOD_HPP

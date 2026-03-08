@@ -71,7 +71,6 @@ struct SearchIterationState
 
 /**
  * Refina la orientacion del plano de corte para minimizar errores (SEARCH).
- *
  * @param legislatorCoords Coordenadas de legisladores (NP x NS) [XMAT]
  * @param votes Vector de votos para este roll call [LDATA(:,JX)]
  *              Codigos: 1=Si, 6=No, 0/9=Ausente
@@ -91,7 +90,6 @@ SearchResult refineCuttingPlane(
 
 /**
  * Version que actualiza matrices in-place (firma mas cercana al Fortran).
- *
  * @param legislatorCoords Coordenadas de legisladores (NP x NS)
  * @param votes Vector de votos para este roll call
  * @param normalVector Vector normal (entrada/salida)
@@ -115,10 +113,7 @@ bool refineCuttingPlaneInPlace(
     int &outTotalClassified);
 
 // CUTPLANE - Orquestador de clasificacion inicial de todas las votaciones
-
-/**
- * Estadisticas de proyecciones para una votacion.
- */
+// Estadisticas de proyecciones para una votacion.
 struct ProjectionStats
 {
     double meanYes; // SUMYES: media de proyecciones de votantes "Si"
@@ -129,9 +124,8 @@ struct ProjectionStats
     ProjectionStats() : meanYes(0.0), meanNo(0.0), countYes(0), countNo(0) {}
 };
 
-/**
- * Resultado de clasificacion para una votacion individual.
- */
+
+// Resultado de clasificacion para una votacion individual.
 struct RollCallClassification
 {
     CuttingPolarity polarity;          // Polaridad de la votacion (KCUT, LCUT)
@@ -151,16 +145,8 @@ struct RollCallClassification
           totalClassified(0) {}
 };
 
-/**
- * Resultado completo de CUTPLANE para todas las votaciones.
- *
- * Corresponde a los parametros de salida de SUBROUTINE CUTPLANE:
- * - MCUTS(NRCALL,2): polaridades
- * - LERROR(NP,NRCALL): errores por legislador/votacion
- * - WS(NRCALL): puntos de corte
- * - KT: total clasificados
- * - KTT: total errores
- */
+
+// Resultado completo de CUTPLANE para todas las votaciones.
 struct CutplaneResult
 {
     std::vector<CuttingPolarity> polarities;             // Polaridades de todas las votaciones (MCUTS)
@@ -199,7 +185,6 @@ struct CutplaneResult
 
     /**
      * Obtiene errores totales por legislador.
-     *
      * @return Vector de tamano NP con total de errores por legislador
      */
     std::vector<int> getErrorsByLegislator() const
@@ -218,10 +203,8 @@ struct CutplaneResult
 
 /**
  * Clasificacion inicial de todas las votaciones (CUTPLANE).
- *
  * @param legislatorCoords Coordenadas de legisladores (NP x NS) [XMAT]
  * @param normalVectors Vectores normales de roll calls (NRCALL x NS) [ZVEC]
- *                      Se actualizan in-place si searchEnabled=true
  * @param voteMatrix Matriz de votos (NP x NRCALL) [LDATA]
  *                   Codigos: 1=Si, 6=No, 0=Ausente
  * @param searchEnabled Si true, ejecutar SEARCH cuando hay errores [IFIXX != 0]
@@ -235,7 +218,6 @@ CutplaneResult findAllCuttingPlanes(
 
 /**
  * Clasificacion de una votacion individual.
- *
  * @param legislatorCoords Coordenadas de legisladores (NP x NS)
  * @param normalVector Vector normal de esta votacion (NS) - entrada/salida
  * @param votes Vector de votos para esta votacion (NP)
