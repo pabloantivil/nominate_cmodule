@@ -1263,7 +1263,18 @@ void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &prese
     reconstructLegislatorCoords(presence, legResult.coefficients);
 
     // Guardar coeficientes temporales para reconstruccion posterior por periodo
-    temporalCoefficients_[uniqueId] = legResult.coefficients.beta;
+    Eigen::MatrixXd betaToStore = legResult.coefficients.beta;
+    if (config_.temporalModel == 0)
+    {
+        // Modelo constante: solo β₀ tiene valor, los demás son 0
+        for (int k = 0; k < ns; ++k)
+        {
+            betaToStore(1, k) = 0.0; // β₁ = 0
+            betaToStore(2, k) = 0.0; // β₂ = 0
+            betaToStore(3, k) = 0.0; // β₃ = 0
+        }
+    }
+    temporalCoefficients_[uniqueId] = betaToStore;
 
     // Actualizar varianzas
 
