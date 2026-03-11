@@ -7,12 +7,9 @@
 #include <cmath>
 #include <array>
 
-/**
- * Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
- */
+// Estructuras y funciones para calcular log-likelihood del modelo DW-NOMINATE
 
 constexpr int MAX_DIMENSIONS = 4; // DW-NOMINATE tipicamente usa 1-2 dimensiones
-
 
 // Buffer de trabajo pre-allocated para evitar allocations dinamicas.
 struct LikelihoodWorkBuffer
@@ -125,7 +122,6 @@ private:
 
 /**
  * Estadisticas de clasificacion del modelo.
- *
  * Equivalente a KLASS, KLASSYY, etc. en Fortran.
  */
 struct ClassificationStats
@@ -187,30 +183,6 @@ LikelihoodResult computeLogLikelihood(
     const Eigen::VectorXd &weights,
     const NormalCDF &normalCDF,
     const std::vector<bool> &validRollCalls);
-
-
-/**
- * Calcula log-likelihood usando optimizaciones estructurales.
- *
- * OPTIMIZADO: Elimina allocations dinamicas en hot loops.
- * Usa arrays de tamano fijo y pesos pre-cacheados.
- * @param legislatorCoords Coordenadas de legisladores
- * @param rollCallParams Parametros de roll calls
- * @param votes Matriz de votos
- * @param weights Pesos dimensionales [w1..wNS, beta]
- * @param normalCDF Tabla CDF
- * @param validRollCalls Mascara de roll calls validos
- * @param buffer Buffer de trabajo pre-allocated (reutilizable)
- * @return Resultado con log-likelihood y estadisticas
- */
-LikelihoodResult computeLogLikelihoodOptimized(
-    const Eigen::MatrixXd &legislatorCoords,
-    const std::vector<RollCallParameters> &rollCallParams,
-    const VoteMatrix &votes,
-    const Eigen::VectorXd &weights,
-    const NormalCDF &normalCDF,
-    const std::vector<bool> &validRollCalls,
-    LikelihoodWorkBuffer &buffer);
 
 /**
  * OPTIMIZADO + PARALELIZADO: Calcula log-likelihood con OpenMP.

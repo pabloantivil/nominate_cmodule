@@ -83,9 +83,7 @@ DWNominate::DWNominate(const DWNominateConfig &config, const DWNominateInput &in
     log("  Legisladores: " + std::to_string(numLegislators));
 }
 
-/**
- * Inicializa la tabla CDF.
- */
+// Inicializa la tabla CDF.
 void DWNominate::initializeCDF()
 {
     // NormalCDF se inicializa en su constructor con los mismos
@@ -93,9 +91,7 @@ void DWNominate::initializeCDF()
     // La tabla ZDF se precomputa automaticamente.
 }
 
-/**
- * Carga metadata de congresos y calcula offsets.
- */
+// Carga metadata de congresos y calcula offsets.
 void DWNominate::loadCongressMetadata(const DWNominateInput &input)
 {
     int numCongresses = config_.lastCongress - config_.firstCongress + 1;
@@ -132,9 +128,7 @@ void DWNominate::loadCongressMetadata(const DWNominateInput &input)
     }
 }
 
-/**
- * Carga roll calls y determina validez.
- */
+// Carga roll calls y determina validez.
 void DWNominate::loadRollCalls(const DWNominateInput &input)
 {
     // Copiar roll call congress
@@ -192,14 +186,7 @@ void DWNominate::loadRollCalls(const DWNominateInput &input)
     }
 }
 
-/**
- * Carga legisladores y construye mapas de presencia.
- *
- * Para el modelo temporal (NMODEL >= 1), es crucial detectar correctamente
- * en qué periodos (congresos) participó cada legislador. Esto se hace
- * analizando los votos: un legislador "participa" en un periodo si tiene
- * al menos un voto no-missing en los roll calls de ese periodo.
- */
+// Carga legisladores y construye mapas de presencia.
 void DWNominate::loadLegislators(const DWNominateInput &input)
 {
     // Copiar datos basicos
@@ -276,9 +263,7 @@ void DWNominate::loadLegislators(const DWNominateInput &input)
 }
 
 // METODO PRINCIPAL run()
-/**
- * Ejecuta el algoritmo completo.
- */
+// Ejecuta el algoritmo completo.
 DWNominateResult DWNominate::run()
 {
     DWNominateResult result;
@@ -444,7 +429,7 @@ DWNominateResult DWNominate::run()
         }
     }
 
-    // === SOPORTE MULTI-PERIODO ===
+    // SOPORTE MULTI-PERIODO
     // Copiar coeficientes temporales al resultado
     result.temporalCoefficients = temporalCoefficients_;
 
@@ -641,9 +626,7 @@ void DWNominate::executeRollCallPhase(int iteration)
     }
 }
 
-/**
- * Procesa un roll call individual.
- */
+// Procesa un roll call individual.
 void DWNominate::processRollCall(
     int congressIndex,
     int rollCallLocalIndex,
@@ -1186,9 +1169,7 @@ void DWNominate::executeLegislatorPhase()
 
     const int numValidLegislators = static_cast<int>(validLegislatorIds.size());
 
-    // =========================================================================
     // PASO 2: Procesar legisladores en paralelo
-    // =========================================================================
     // Cada legislador es independiente:
     // - Lee de: legislatorCoords_, rollCallMidpoints_, rollCallSpreads_,
     //           votes_, validRollCalls_, weights_, normalCDF_
@@ -1210,9 +1191,7 @@ void DWNominate::executeLegislatorPhase()
     log("  Legisladores unicos procesados: " + std::to_string(numValidLegislators));
 }
 
-/**
- * Procesa un legislador unico.
- */
+// Procesa un legislador unico.
 void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &presence)
 {
     int ns = config_.numDimensions;
@@ -1325,9 +1304,7 @@ void DWNominate::processLegislator(int uniqueId, const LegislatorPresence &prese
 }
 
 // METODOS DE UTILIDAD
-/**
- * Calcula log-likelihood global (PLOG).
- */
+// Calcula log-likelihood global (PLOG).
 double DWNominate::computeLogLikelihood()
 {
     // Construir vector de parametros de roll call
@@ -1364,9 +1341,7 @@ double DWNominate::computeLogLikelihood()
     return result.logLikelihood;
 }
 
-/**
- * Normaliza un vector a la esfera unitaria.
- */
+// Normaliza un vector a la esfera unitaria.
 void DWNominate::normalizeToUnitSphere(Eigen::VectorXd &point)
 {
     double norm = point.norm();
@@ -1376,9 +1351,7 @@ void DWNominate::normalizeToUnitSphere(Eigen::VectorXd &point)
     }
 }
 
-/**
- * Verifica si un roll call es valido.
- */
+// Verifica si un roll call es valido.
 bool DWNominate::isRollCallValid(int yesCount, int noCount) const
 {
     int total = yesCount + noCount;
@@ -1391,9 +1364,7 @@ bool DWNominate::isRollCallValid(int yesCount, int noCount) const
     return margin >= config_.marginThreshold;
 }
 
-/**
- * Log de progreso.
- */
+// Log de progreso.
 void DWNominate::log(const std::string &message) const
 {
     if (config_.verbose)
@@ -1405,7 +1376,6 @@ void DWNominate::log(const std::string &message) const
 // METODOS AUXILIARES DE INTEGRACION CON OPTIMIZADORES
 /**
  * Construye vector de RollCallParameters desde estado interno.
- *
  * @return Vector de parametros de roll calls
  */
 std::vector<RollCallParameters> DWNominate::buildRollCallParams() const
@@ -1428,7 +1398,6 @@ std::vector<RollCallParameters> DWNominate::buildRollCallParams() const
 
 /**
  * Construye LegislatorPeriodInfo para un legislador.
- *
  * @param uniqueId ID unico del legislador
  * @param presence Informacion de presencia en congresos
  * @return Informacion de periodos para el optimizador

@@ -30,8 +30,6 @@
 
 /**
  * @brief Configuracion del modelo DW-NOMINATE.
- *
- * Equivale a NOMSTARTIN(1:6) en Fortran.
  */
 struct DWNominateConfig
 {
@@ -44,13 +42,13 @@ struct DWNominateConfig
     double marginThreshold; // Umbral de margen (0.025)
     bool verbose;           // Imprimir mensajes de progreso
 
-    // === Modo validación: fijar parámetros globales ===
+    // Modo validación: fijar parámetros globales 
     bool fixGlobalParams; // Si true, NO re-estima W2 ni Beta (para diagnostico)
 
-    // === Modo validación: fijar parámetros de roll calls ===
+    // Modo validación: fijar parámetros de roll calls 
     bool fixRollCalls; // Si true, NO re-estima cutting planes (usa valores cargados)
 
-    // === Modo validación: fijar coordenadas de legisladores ===
+    // Modo validación: fijar coordenadas de legisladores 
     bool fixLegislators; // Si true, NO optimiza coordenadas (solo calcula likelihood)
 
     DWNominateConfig()
@@ -71,7 +69,6 @@ struct DWNominateConfig
 
 /**
  * @brief Metadata de un congreso.
- *
  * Equivale a MCONG(II,1:3) en Fortran.
  * Los offsets reemplazan los acumuladores KTOTP/KTOTQ.
  */
@@ -95,7 +92,6 @@ struct CongressInfo
 
 /**
  * @brief Informacion de presencia de un legislador en congresos.
- *
  * Reemplaza LWHERE(id,congreso) y KWHERE(id,congreso) del Fortran.
  */
 struct LegislatorPresence
@@ -125,7 +121,6 @@ struct LegislatorPresence
 
 /**
  * @brief Estadisticas de un legislador individual.
- *
  * Equivale a XBIGLOG, KBIGLOG, GMP por legislador.
  */
 struct LegislatorStats
@@ -162,7 +157,6 @@ struct LegislatorStats
 
 /**
  * @brief Datos de entrada para DWNominate.
- *
  * Agrupa todos los parametros de entrada de la subrutina dwnom.
  */
 struct DWNominateInput
@@ -211,7 +205,6 @@ struct DWNominateInput
 
 /**
  * @brief Resultado completo de la ejecucion de DWNominate.
- *
  * Agrupa todos los arrays de salida de la subrutina dwnom.
  */
 struct DWNominateResult
@@ -327,7 +320,6 @@ struct DWNominateResult
 
 /**
  * @brief Clase principal del algoritmo DW-NOMINATE.
- *
  * Orquesta todas las fases del algoritmo, manteniendo el estado
  * interno y coordinando las llamadas a los optimizadores.
  */
@@ -463,7 +455,6 @@ private:
     // METODOS AUXILIARES DE ROLL CALLS
     /**
      * @brief Procesa un roll call individual.
-     *
      * @param congressIndex Indice del congreso (0-based)
      * @param rollCallLocalIndex Indice del roll call dentro del congreso (0-based)
      * @param globalRollCallIndex Indice global del roll call
@@ -485,7 +476,6 @@ private:
 
     /**
      * @brief Procesa un roll call individual (version thread-safe para OpenMP).
-     *
      * Esta version es segura para ejecutar en paralelo porque:
      * - Solo lee datos compartidos (legislatorCoords_, votes_, weights_)
      * - Escribe en filas independientes de matrices (una por roll call)
@@ -503,7 +493,6 @@ private:
 
     /**
      * @brief Prepara datos para un roll call.
-     *
      * Extrae coordenadas de legisladores, codigos de voto,
      * y ordena por primera dimension.
      *
@@ -596,7 +585,6 @@ private:
 
     /**
      * @brief Construye LegislatorPeriodInfo para un legislador.
-     *
      * Convierte LegislatorPresence al formato esperado por optimizeLegislator.
      * @param uniqueId ID unico del legislador
      * @param presence Informacion de presencia en congresos

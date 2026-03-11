@@ -1,6 +1,5 @@
 /**
  * Implementacion de computeLegislatorDerivatives (PROX).
- *
  * Calcula derivadas del log-likelihood respecto a las coordenadas espaciales de un legislador especifico,
  * considerando modelos temporales.
  */
@@ -14,7 +13,6 @@ namespace
 
     /**
      * Reconstruye coordenadas del legislador para un periodo segun modelo temporal.
-     *
      * Implementa:
      * - Constante: x_k = beta_0k
      * - Lineal: x_k = beta_0k + beta_1k * t
@@ -62,7 +60,6 @@ namespace
 
     /**
      * Calcula distancias al cuadrado y lineales hacia puntos Yes/No.
-     *
      * Geometria DW-NOMINATE:
      * - Punto Yes = zmid - dyn
      * - Punto No = zmid + dyn
@@ -102,7 +99,6 @@ namespace
 
     /**
      * Calcula utilidades ponderadas para ambas opciones de voto.
-     *
      * @param dyesSquared Distancias al cuadrado hacia Yes
      * @param dnoSquared Distancias al cuadrado hacia No
      * @param weights Vector de pesos
@@ -139,7 +135,6 @@ namespace
 
     /**
      * Calcula derivadas base respecto a coordenadas del legislador.
-     *
      * @param dyesLinear Distancias lineales hacia Yes
      * @param dnoLinear Distancias lineales hacia No
      * @param weights Pesos dimensionales
@@ -186,7 +181,6 @@ namespace
 
     /**
      * Expande derivadas base a derivadas para modelo temporal.
-     *
      * @param baseDerivs Derivadas base (dL/dx_k)
      * @param timeTrends Valores temporales
      * @param periodIndex Indice del periodo
@@ -252,7 +246,6 @@ namespace
 
     /**
      * Actualiza la matriz de informacion con producto externo.
-     *
      * @param infoMatrix Matriz a actualizar
      * @param derivs Vector de derivadas
      * @param size Dimension de la matriz a usar

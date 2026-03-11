@@ -56,9 +56,7 @@ struct VoteUtilities
 
 // Funciones auxiliares
 
-/**
- *  Calcula distancias cuadradas y lineales para un legislador.
- */
+// Calcula distancias cuadradas y lineales para un legislador.
 static DimensionalDistances computeDistances(
     const Eigen::VectorXd &legislatorCoord,
     const Eigen::VectorXd &midpoint,
@@ -85,7 +83,6 @@ static DimensionalDistances computeDistances(
 
 /**
  * Calcula utilidades y terminos derivativos para un voto.
- *
  * @param dist Distancias precalculadas
  * @param weights Vector de pesos [w1,...,wNS,beta]
  * @param votedYes true si el legislador voto Si
@@ -311,18 +308,12 @@ RollCallDerivativesResult computeRollCallDerivatives(
         normalCDF);
 }
 
-// ===========================================================================
-// IMPLEMENTACION OPTIMIZADA - CORRECCIONES A, B, C, D, E
-// ===========================================================================
-//
-// CORRECCION A: Arrays de tamano fijo (elimina heap allocations)
-// CORRECCION B: Buffer de trabajo reutilizable entre llamadas
-// CORRECCION C: Pesos al cuadrado pre-cacheados
-// CORRECCION D: Filtrado opcional por legisladores validos
-// CORRECCION E: Calculos inline de distancia, utilidad y derivadas
-//
-// Logica matematica: INTACTA - Solo optimizacion estructural
-// ===========================================================================
+// Implemnentacion optimizada 
+// - Arrays de tamano fijo (elimina heap allocations)
+// - Buffer de trabajo reutilizable entre llamadas
+// - Pesos al cuadrado pre-cacheados
+// - Filtrado opcional por legisladores validos
+// - Calculos inline de distancia, utilidad y derivadas
 
 RollCallDerivativesResult computeRollCallDerivativesOptimized(
     const Eigen::MatrixXd &legislatorCoords,
@@ -347,7 +338,7 @@ RollCallDerivativesResult computeRollCallDerivativesOptimized(
         throw std::out_of_range("Indice de roll call fuera de rango");
     }
 
-    // CORRECCION C: Cachear pesos al cuadrado
+    // Cachear pesos al cuadrado
     buffer.cacheWeights(weights, numDimensions);
 
     // Inicializacion con vectores pre-sized
@@ -367,7 +358,7 @@ RollCallDerivativesResult computeRollCallDerivativesOptimized(
     // Loop principal sobre legisladores
     for (int i = 0; i < numLegislators; ++i)
     {
-        // CORRECCION D: Skip temprano - USAR VERSION SIN BOUNDS CHECK
+        // Skip temprano - USAR VERSION SIN BOUNDS CHECK
         if (votes.isMissingUnsafe(i, rollCallIndex))
         {
             continue;
@@ -375,7 +366,7 @@ RollCallDerivativesResult computeRollCallDerivativesOptimized(
 
         totalVotes++;
 
-        // CORRECCION E: Calculos inline de distancia sin estructuras auxiliares
+        // Calculos inline de distancia sin estructuras auxiliares
         // Variables locales en stack (sin allocations)
         double DC = 0.0;
         double DB = 0.0;
@@ -388,7 +379,7 @@ RollCallDerivativesResult computeRollCallDerivativesOptimized(
         bool votedYes = votes.getVoteUnsafe(i, rollCallIndex);
         double xcc = votedYes ? +1.0 : -1.0;
 
-        // CORRECCION E: Loop inline combinado para distancias y utilidades
+        // Loop inline combinado para distancias y utilidades
         for (int k = 0; k < numDimensions; ++k)
         {
             double coord_k = legislatorCoords(i, k);
@@ -468,7 +459,7 @@ RollCallDerivativesResult computeRollCallDerivativesOptimized(
     return result;
 }
 
-// Version con lista de legisladores validos (CORRECCION D)
+// Version con lista de legisladores validos
 RollCallDerivativesResult computeRollCallDerivativesOptimized(
     const Eigen::MatrixXd &legislatorCoords,
     int rollCallIndex,

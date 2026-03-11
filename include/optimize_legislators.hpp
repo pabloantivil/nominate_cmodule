@@ -13,9 +13,7 @@
 #include <Eigen/Dense>
 #include <vector>
 
-/**
- * Configuracion del optimizador de legisladores.
- */
+// Configuracion del optimizador de legisladores.
 struct LegislatorOptimizerConfig
 {
     int maxIterations = 10;           // Numero maximo de iteraciones por termino
@@ -28,9 +26,7 @@ struct LegislatorOptimizerConfig
     double eigenThreshold = 0.0001;   // Umbral de eigenvalores para inversion
 };
 
-/**
- * Resultado de la optimizacion de un legislador.
- */
+// Resultado de la optimizacion de un legislador.
 struct LegislatorOptimizationResult
 {
     TemporalCoefficients coefficients; // XBETA optimizado
@@ -63,7 +59,6 @@ struct LegislatorOptimizationResult
 
 /**
  * Optimiza las coordenadas de un legislador (XINT).
- * 
  * @return Resultado de la optimizacion del legislador
  */
 LegislatorOptimizationResult optimizeLegislator(

@@ -47,10 +47,7 @@ struct SearchResult
           isPerfectClassification(false) {}
 };
 
-/**
- * Estado de una iteracion de SEARCH para almacenamiento interno.
- * Corresponde a las variables UUU, FV1, FV2, KKKCUT, LLLCUT del Fortran.
- */
+// Estado de una iteracion de SEARCH para almacenamiento interno.
 struct SearchIterationState
 {
     Eigen::VectorXd normalVector; // UUU(IJL,:): Vector normal de esta iteracion
@@ -87,30 +84,6 @@ SearchResult refineCuttingPlane(
     double initialCutPoint,
     const CuttingPolarity &initialPolarity,
     int maxIterations = 25);
-
-/**
- * Version que actualiza matrices in-place (firma mas cercana al Fortran).
- * @param legislatorCoords Coordenadas de legisladores (NP x NS)
- * @param votes Vector de votos para este roll call
- * @param normalVector Vector normal (entrada/salida)
- * @param cuttingPoint Punto de corte (entrada/salida)
- * @param polarity Polaridad (entrada/salida)
- * @param projections Proyecciones de salida (se redimensiona)
- * @param maxIterations Numero maximo de iteraciones
- * @param outErrors Numero de errores de salida [KITTY1]
- * @param outTotalClassified Total clasificados de salida [KITTY2]
- * @return true si se encontro clasificacion perfecta, false en caso contrario
- */
-bool refineCuttingPlaneInPlace(
-    const Eigen::MatrixXd &legislatorCoords,
-    const std::vector<int> &votes,
-    Eigen::VectorXd &normalVector,
-    double &cuttingPoint,
-    CuttingPolarity &polarity,
-    std::vector<double> &projections,
-    int maxIterations,
-    int &outErrors,
-    int &outTotalClassified);
 
 // CUTPLANE - Orquestador de clasificacion inicial de todas las votaciones
 // Estadisticas de proyecciones para una votacion.

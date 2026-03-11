@@ -9,7 +9,7 @@
  * - SIGMAS: optimiza WEIGHT(NS+1) con paso 0.1
  * - WINT: optimiza WEIGHT(2) con paso 0.01
  *
- * OPTIMIZACIONES IMPLEMENTADAS:
+ * OPTIMIZACIONES:
  * - Buffer de trabajo reutilizable para evaluaciones de likelihood
  * - Evita allocations dinamicas en hot loops
  * - Paralelización con OpenMP en evaluaciones de likelihood
@@ -20,9 +20,6 @@
 #include <iostream>
 #include <iomanip>
 #include <stdexcept>
-
-// Buffer global obsoleto - ahora usamos version paralela
-// static thread_local LikelihoodWorkBuffer g_likelihoodBuffer;
 
 /**
  * Evalua log-likelihood usando version PARALELA con OpenMP.
@@ -50,10 +47,8 @@ static double evaluateLogLikelihood(const LikelihoodContext &ctx)
     return result.logLikelihood;
 }
 
-// ============================================================================
-// Implementacion de optimizeParameter()
-// ============================================================================
 
+// Implementacion de optimizeParameter()
 ParameterOptimizationResult optimizeParameter(
     LikelihoodContext &context,
     int paramIndex,
@@ -277,17 +272,6 @@ BetaOptimizationResult optimizeBeta(
     return result;
 }
 
-// Implementacion de optimizeBetaSimple()
-double optimizeBetaSimple(LikelihoodContext &context)
-{
-    BetaOptimizerConfig config = sigmasConfig();
-    config.verbose = false;
-
-    BetaOptimizationResult result = optimizeBeta(context, config);
-
-    return result.logLikelihood;
-}
-
 // Implementacion de optimizeWeight2() - WINT
 WeightOptimizationResult optimizeWeight2(
     LikelihoodContext &context,
@@ -323,13 +307,3 @@ WeightOptimizationResult optimizeWeight2(
     return result;
 }
 
-// Implementacion de optimizeWeight2Simple() - WINT
-double optimizeWeight2Simple(LikelihoodContext &context)
-{
-    WeightOptimizerConfig config = wintConfig();
-    config.verbose = false;
-
-    WeightOptimizationResult result = optimizeWeight2(context, config);
-
-    return result.logLikelihood;
-}

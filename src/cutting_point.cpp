@@ -5,7 +5,6 @@
  * Funciones traducidas:
  * - JAN1PT -> findCuttingPoint1D()
  * - JAN11PT -> findCuttingPoint1DFixedPolarity()
- *
  */
 
 #include "cutting_point.hpp"
@@ -16,9 +15,7 @@
 namespace
 {
 
-    /**
-     * Estructura interna para un corte candidato.
-     */
+    // Estructura interna para un corte candidato.
     struct CutCandidate
     {
         double position;   // Y(I): Posicion del corte
@@ -37,7 +34,6 @@ namespace
 
     /**
      * Resultado de evaluacion para una polaridad.
-     *
      * Almacena el mejor corte encontrado para una configuracion KCUT/LCUT.
      */
     struct PolarityResult
@@ -56,7 +52,6 @@ namespace
 
     /**
      * Genera puntos de corte candidatos.
-     *
      * @param projections Proyecciones ordenadas
      * @return Vector de posiciones de corte candidatas
      */
@@ -82,7 +77,6 @@ namespace
 
     /**
      * Cuenta clasificacion para todos los cortes con una polaridad dada.
-     *
      * @param projections Proyecciones ordenadas
      * @param votes Votos reordenados (1=Si, 6=No, 9=Ausente)
      * @param cutPoints Posiciones de corte candidatas
@@ -181,7 +175,6 @@ namespace
 
     /**
      * Encuentra el mejor corte entre candidatos, manejando empates.
-     *
      * @param candidates Vector de candidatos evaluados
      * @return Mejor candidato seleccionado
      */
@@ -249,7 +242,6 @@ namespace
 
     /**
      * Evalua todos los cortes para una polaridad.
-     *
      * @param projections Proyecciones ordenadas
      * @param votes Votos reordenados
      * @param kcut Voto esperado en lado bajo
@@ -308,7 +300,6 @@ namespace
 
     /**
      * Calcula centroides de cada grupo de clasificacion.
-     *
      * @param projections Proyecciones ordenadas
      * @param votes Votos reordenados
      * @param originalIndices Mapeo a indices originales
@@ -408,7 +399,6 @@ namespace
 
     /**
      * Calcula errores de clasificacion por legislador.
-     *
      * @param projections Proyecciones ordenadas
      * @param votes Votos reordenados
      * @param originalIndices Mapeo a indices originales
@@ -468,9 +458,7 @@ namespace
 
 } // namespace anonimo
 
-
 // Implementacion de funciones publicas
-
 CuttingPointResult findCuttingPoint1D(
     const std::vector<double> &projections,
     const std::vector<int> &votes,
@@ -575,57 +563,8 @@ CuttingPointResult findCuttingPoint1D(
     return result;
 }
 
-CuttingPointResult findCuttingPoint1DSimple(
-    const std::vector<double> &projections,
-    const std::vector<int> &votes)
-{
-    CuttingPointResult result;
-    result.numLegislators = static_cast<int>(projections.size());
-    result.numDimensions = 1;
-
-    if (projections.empty() || projections.size() != votes.size())
-    {
-        return result;
-    }
-
-    // Evaluar ambas polaridades
-    PolarityResult result1 = evaluatePolarityCuts(
-        projections, votes,
-        VoteCode::YES, VoteCode::NO,
-        nullptr);
-
-    PolarityResult result2 = evaluatePolarityCuts(
-        projections, votes,
-        VoteCode::NO, VoteCode::YES,
-        nullptr);
-
-    // Seleccionar mejor polaridad
-    PolarityResult *best = nullptr;
-    if (result1.errorRate <= result2.errorRate)
-    {
-        best = &result1;
-        result.polarity = CuttingPolarity(VoteCode::YES, VoteCode::NO);
-    }
-    else
-    {
-        best = &result2;
-        result.polarity = CuttingPolarity(VoteCode::NO, VoteCode::YES);
-    }
-
-    // Almacenar resultados
-    result.cuttingPoint = best->cutPosition;
-    result.errorRate = best->errorRate;
-    result.counts.correctLow = best->correctLow;
-    result.counts.errorsLow = best->errorsLow;
-    result.counts.correctHigh = best->correctHigh;
-    result.counts.errorsHigh = best->errorsHigh;
-
-    return result;
-}
-
 /**
  * Encuentra el punto de corte optimo con polaridad fija (JAN11PT).
- *
  * @param projections Proyecciones ordenadas (YSS en Fortran)
  * @param votes Votos ordenados (KA en Fortran)
  * @param polarity Polaridad fija (KCCUT/LCCUT en Fortran)

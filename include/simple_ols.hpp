@@ -15,7 +15,7 @@
 #include <Eigen/Dense>
 
 /**
- *  Regresion OLS simple
+ * Regresion OLS simple
  *
  * @param ns Numero de observaciones (filas de A)
  * @param nf Numero de variables (columnas de A)

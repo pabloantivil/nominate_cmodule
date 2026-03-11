@@ -87,7 +87,6 @@ struct GroupCentroids
 
 /**
  * Informacion de cortes candidatos para un modo intermedio (JROTC=0).
- *
  * Almacena informacion de todos los puntos de corte evaluados
  */
 struct CuttingPointCandidates
@@ -150,7 +149,6 @@ struct CuttingPointResult
 
 /**
  * Encuentra el punto de corte optimo en 1D (JAN1PT).
- *
  * @param projections Proyecciones ordenadas de legisladores (YSS)
  * @param votes Votos reordenados segun projections (KA): 1=Si, 6=No, 9=Ausente
  * @param originalIndices Mapeo de indices ordenados a originales (LLL), 0-based
@@ -170,19 +168,7 @@ CuttingPointResult findCuttingPoint1D(
     CuttingPointMode mode = CuttingPointMode::NORMAL);
 
 /**
- * Version simplificada sin calculo de centroides.
- *
- * @param projections Proyecciones ordenadas
- * @param votes Votos reordenados
- * @return Resultado con punto de corte optimo (sin centroides)
- */
-CuttingPointResult findCuttingPoint1DSimple(
-    const std::vector<double> &projections,
-    const std::vector<int> &votes);
-
-/**
  * Encuentra el punto de corte optimo con polaridad fija (JAN11PT).
- *
  * @param projections Proyecciones ordenadas de legisladores (YSS)
  * @param votes Votos ordenados correspondientes (KA): 1=Si, 6=No, 9=Ausente
  * @param polarity Polaridad fija para la clasificacion (KCCUT/LCCUT)

@@ -3,16 +3,9 @@
 
 /**
  * Calculo de derivadas y log-likelihood para parametros de roll calls
- *
  * PROLLC2 calcula derivadas del log-likelihood respecto a los parametros
  * de una votacion especifica (midpoint y spread), necesarias para el
  * optimizador RCINT2
- *
- * OPTIMIZACIONES IMPLEMENTADAS:
- * - Correccion A: Vectores de tamano fijo (stack allocation)
- * - Correccion B: Buffers de trabajo pre-allocated
- * - Correccion C: Pesos al cuadrado cacheados
- * - Correccion E: Calculos inline sin llamadas a funciones auxiliares
  */
 
 #include "likelihood.hpp"
@@ -21,13 +14,10 @@
 #include <vector>
 #include <array>
 
-/**
- * Buffer de trabajo para computeRollCallDerivatives.
- * CORRECCION B: Elimina allocations dinamicas en hot loops.
- */
+// Buffer de trabajo para computeRollCallDerivatives.
 struct RollCallDerivativesWorkBuffer
 {
-    // CORRECCION A/C: Arrays fijos + pesos cacheados
+    // Arrays fijos + pesos cacheados
     std::array<double, MAX_DIMENSIONS> weightsSquared;
     std::array<double, MAX_DIMENSIONS> midpointDeriv;
     std::array<double, MAX_DIMENSIONS> spreadDeriv;
@@ -59,9 +49,7 @@ struct RollCallDerivativesWorkBuffer
     }
 };
 
-/**
- * Resultado del calculo de derivadas para un roll call.
- */
+// Resultado del calculo de derivadas para un roll call.
 struct RollCallDerivativesResult
 {
     // Log-likelihood
@@ -85,9 +73,7 @@ struct RollCallDerivativesResult
     // Clasificacion alternativa
     int positiveZS; // KLASS2: votos con ZS > 0
 
-    /**
-     * Constructor por defecto.
-     */
+    // Constructor por defecto
     RollCallDerivativesResult()
         : logLikelihood(0.0),
           geometricMeanProb(0.0),
@@ -101,9 +87,7 @@ struct RollCallDerivativesResult
     {
     }
 
-    /**
-     * Constructor con dimension especificada.
-     */
+    // Constructor con dimension especificada.
     explicit RollCallDerivativesResult(int numDimensions)
         : logLikelihood(0.0),
           geometricMeanProb(0.0),
@@ -119,9 +103,7 @@ struct RollCallDerivativesResult
     {
     }
 
-    /**
-     * Calcula precision de clasificacion.
-     */
+    // Calcula precision de clasificacion.
     double getAccuracy() const
     {
         return totalVotes > 0
@@ -132,7 +114,6 @@ struct RollCallDerivativesResult
 
 /**
  * Calcula log-likelihood y derivadas para un roll call especifico.
- *
  * @param legislatorCoords Coordenadas de legisladores (numLeg x numDim)
  * @param rollCallIndex Indice del roll call a evaluar (0-based)
  * @param midpoint Punto medio actual del roll call (zmid)
@@ -151,9 +132,7 @@ RollCallDerivativesResult computeRollCallDerivatives(
     const Eigen::VectorXd &weights,
     const NormalCDF &normalCDF);
 
-/**
- * Version simplificada que usa RollCallParameters.
- */
+// Version simplificada que usa RollCallParameters.
 RollCallDerivativesResult computeRollCallDerivatives(
     const Eigen::MatrixXd &legislatorCoords,
     int rollCallIndex,
@@ -162,21 +141,14 @@ RollCallDerivativesResult computeRollCallDerivatives(
     const Eigen::VectorXd &weights,
     const NormalCDF &normalCDF);
 
-// ===========================================================================
-// VERSION OPTIMIZADA - CORRECCIONES A, B, C, D, E
-// ===========================================================================
-
 /**
  * Version optimizada de computeRollCallDerivatives.
- *
  * OPTIMIZACIONES:
- * - Correccion A: Arrays de tamano fijo (sin heap allocations)
- * - Correccion B: Buffer de trabajo reutilizable
- * - Correccion C: Pesos al cuadrado pre-cacheados en buffer
- * - Correccion D: Filtrado por legisladores validos (opcional)
- * - Correccion E: Calculos inline de distancia y utilidad
- *
- * Logica matematica: INTACTA
+ * - Arrays de tamano fijo (sin heap allocations)
+ * - Buffer de trabajo reutilizable
+ * - Pesos al cuadrado pre-cacheados en buffer
+ * - Filtrado por legisladores validos (opcional)
+ * - Calculos inline de distancia y utilidad
  */
 RollCallDerivativesResult computeRollCallDerivativesOptimized(
     const Eigen::MatrixXd &legislatorCoords,
@@ -188,10 +160,7 @@ RollCallDerivativesResult computeRollCallDerivativesOptimized(
     const NormalCDF &normalCDF,
     RollCallDerivativesWorkBuffer &buffer);
 
-/**
- * Version optimizada con lista de legisladores validos.
- * CORRECCION D: Solo itera sobre legisladores que votaron.
- */
+// Version optimizada con lista de legisladores validos.
 RollCallDerivativesResult computeRollCallDerivativesOptimized(
     const Eigen::MatrixXd &legislatorCoords,
     int rollCallIndex,

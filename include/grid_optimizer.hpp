@@ -17,7 +17,6 @@
 
 /**
  * Resultado de la optimizacion de un parametro escalar
- *
  * Estructura generica usada por optimizeBeta() y optimizeWeights()
  */
 struct ParameterOptimizationResult
@@ -37,7 +36,6 @@ using WeightOptimizationResult = ParameterOptimizationResult;
 
 /**
  * Parametros de configuracion para optimizadores de busqueda grid.
- *
  * Valores por defecto corresponden a SIGMAS:
  * - NINC = 15 (maximo iteraciones por direccion)
  * - XINC = 0.1 (paso inicial)
@@ -51,9 +49,7 @@ struct GridOptimizerConfig
     double minStep;     // Paso minimo antes de parar
     bool verbose;       // Imprimir progreso
 
-    /**
-     * Constructor con valores por defecto (SIGMAS).
-     */
+    // Constructor con valores por defecto (SIGMAS).
     GridOptimizerConfig()
         : maxIterations(15),
           initialStep(0.1),
@@ -81,7 +77,6 @@ using WeightOptimizerConfig = GridOptimizerConfig;
 
 /**
  * Contexto de datos necesario para evaluar log-likelihood
- *
  * Encapsula todos los datos que SIGMAS()/WINT() acceden via modulos globales
  * (xxcom_mod, mine_mod) en el codigo Fortran
  */
@@ -113,7 +108,6 @@ struct LikelihoodContext
 
 /**
  * Optimiza un parametro escalar via busqueda grid con backtracking.
- *
  * Funcion generica que implementa el algoritmo comun a SIGMAS() y WINT().
  *
  * Algoritmo:
@@ -136,7 +130,6 @@ ParameterOptimizationResult optimizeParameter(
 
 /**
  * Optimiza el parametro beta (sigma-squared inverso).
- *
  * @param context Contexto con datos del modelo
  * @param config Configuracion (por defecto: step=0.1, maxIter=15)
  * @return Resultado con beta optimo
@@ -147,16 +140,9 @@ BetaOptimizationResult optimizeBeta(
     const BetaOptimizerConfig &config = BetaOptimizerConfig());
 
 /**
- * Version que retorna solo el log-likelihood optimizado
- */
-double optimizeBetaSimple(LikelihoodContext &context);
-
-/**
  * Optimiza el peso de la segunda dimension (W2)
- *
  * IMPORTANTE: Solo debe llamarse cuando NS >= 2 (modelos multidimensionales)
  * En modelos unidimensionales (NS=1), WEIGHT(2) no existe
- *
  * @param context Contexto con datos del modelo
  * @param config Configuracion (por defecto: step=0.01, maxIter=15)
  * @return Resultado con W2 optimo
@@ -166,22 +152,13 @@ WeightOptimizationResult optimizeWeight2(
     LikelihoodContext &context,
     const WeightOptimizerConfig &config = WeightOptimizerConfig(0.01));
 
-/**
- * Version simplificada que retorna solo el log-likelihood optimizado
- */
-double optimizeWeight2Simple(LikelihoodContext &context);
-
-/**
- * Configuracion por defecto para optimizacion de beta (SIGMAS)
- */
+// Configuracion por defecto para optimizacion de beta (SIGMAS)
 inline GridOptimizerConfig sigmasConfig()
 {
     return GridOptimizerConfig(0.1);
 }
 
-/**
- * Configuracion por defecto para optimizacion de pesos (WINT)
- */
+// Configuracion por defecto para optimizacion de pesos (WINT)
 inline GridOptimizerConfig wintConfig()
 {
     return GridOptimizerConfig(0.01);

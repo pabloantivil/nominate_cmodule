@@ -11,19 +11,13 @@
 #include <stdexcept>
 #include <cmath>
 
-// ============================================================================
 // Constructor
-// ============================================================================
-
 CSVLoader::CSVLoader(const std::string &inputDir, const std::string &outputDir)
     : inputDir_(inputDir), outputDir_(outputDir)
 {
 }
 
-// ============================================================================
 // Utilidades de parsing CSV
-// ============================================================================
-
 std::vector<std::string> CSVLoader::splitCSVLine(const std::string &line)
 {
     std::vector<std::string> result;
@@ -93,10 +87,7 @@ bool CSVLoader::isNA(const std::string &str)
     return s == "NA" || s == "na" || s == "N/A" || s == "NaN" || s == "nan" || s.empty();
 }
 
-// ============================================================================
 // Carga de metadata de legisladores
-// ============================================================================
-
 void CSVLoader::loadLegislatorMetadata()
 {
     std::string path = inputDir_ + "/legislator_metadata.csv";
@@ -134,10 +125,7 @@ void CSVLoader::loadLegislatorMetadata()
     }
 }
 
-// ============================================================================
 // Carga de votos de un período
-// ============================================================================
-
 PeriodData CSVLoader::loadPeriodVotes(int periodNum)
 {
     PeriodData data;
@@ -196,10 +184,7 @@ PeriodData CSVLoader::loadPeriodVotes(int periodNum)
     return data;
 }
 
-// ============================================================================
 // Construir lista unificada de legisladores
-// ============================================================================
-
 void CSVLoader::buildUnifiedLegislatorList()
 {
     // Obtener todos los IDs únicos de legisladores de todos los períodos
@@ -225,10 +210,7 @@ void CSVLoader::buildUnifiedLegislatorList()
     }
 }
 
-// ============================================================================
 // Obtener offset de roll calls para un período
-// ============================================================================
-
 int CSVLoader::getRollCallOffset(int period) const
 {
     int offset = 0;
@@ -239,10 +221,7 @@ int CSVLoader::getRollCallOffset(int period) const
     return offset;
 }
 
-// ============================================================================
 // Carga de coordenadas W-NOMINATE
-// ============================================================================
-
 std::map<int, WNominateCoords> CSVLoader::loadWNominateCoordinates(const std::string &path)
 {
     std::map<int, WNominateCoords> result;
@@ -294,28 +273,19 @@ std::map<int, WNominateCoords> CSVLoader::loadWNominateCoordinates(const std::st
     return result;
 }
 
-// ============================================================================
 // Carga principal: construir DWNominateInput (wrapper simple)
-// ============================================================================
-
 DWNominateInput CSVLoader::loadInput(int numPeriods)
 {
     return buildDWNominateInput(numPeriods, nullptr);
 }
 
-// ============================================================================
 // Carga con configuración de inicialización específica
-// ============================================================================
-
 DWNominateInput CSVLoader::loadInput(int numPeriods, const InitializationConfig &initConfig)
 {
     return buildDWNominateInput(numPeriods, &initConfig);
 }
 
-// ============================================================================
 // Implementación interna: construir DWNominateInput
-// ============================================================================
-
 DWNominateInput CSVLoader::buildDWNominateInput(int numPeriods, const InitializationConfig *initConfig)
 {
     // 1. Cargar metadata de legisladores
@@ -524,10 +494,7 @@ DWNominateInput CSVLoader::buildDWNominateInput(int numPeriods, const Initializa
     return input;
 }
 
-// ============================================================================
 // Carga de coordenadas de referencia (output de R)
-// ============================================================================
-
 std::vector<ReferenceCoordinates> CSVLoader::loadReferenceCoordinates()
 {
     std::vector<ReferenceCoordinates> result;
@@ -594,10 +561,7 @@ std::vector<ReferenceCoordinates> CSVLoader::loadReferenceCoordinates()
     return result;
 }
 
-// ============================================================================
 // Carga de parámetros de votaciones de referencia (output de R)
-// ============================================================================
-
 std::vector<ReferenceBillParams> CSVLoader::loadReferenceBillParams()
 {
     std::vector<ReferenceBillParams> result;

@@ -13,9 +13,7 @@ namespace
 {
     /**
      * Proyecta legisladores sobre el vector normal.
-     *
      * Calcula: projections[i] = sum_k(legislatorCoords[i,k] * normalVector[k])
-     *
      * @param legislatorCoords Coordenadas de legisladores (NP x NS)
      * @param normalVector Vector normal (NS)
      * @return Vector de proyecciones (NP)
@@ -35,9 +33,7 @@ namespace
         return projections;
     }
 
-    /**
-     * Prepara votos para clasificacion (codigo 0 -> 9).
-     */
+    // Prepara votos para clasificacion (codigo 0 -> 9)
     std::vector<int> prepareVotes(const std::vector<int> &votes)
     {
         std::vector<int> prepared(votes.size());
@@ -50,7 +46,6 @@ namespace
 
     /**
      * Reordena votos segun indices de ordenamiento.
-     *
      * @param votes Votos originales
      * @param sortedIndices Indices de ordenamiento
      * @return Votos reordenados
@@ -69,7 +64,6 @@ namespace
 
     /**
      * Reordena proyecciones segun indices de ordenamiento.
-     *
      * @param projections Proyecciones originales
      * @param sortedIndices Indices de ordenamiento
      * @return Proyecciones ordenadas
@@ -88,7 +82,6 @@ namespace
 
     /**
      * Calcula tamano de nube parcial.
-     *
      * @param totalErrors Numero total de errores
      * @param numDimensions Numero de dimensiones (NS)
      * @param numLegislators Numero de legisladores (NP)
@@ -106,7 +99,6 @@ namespace
 
     /**
      * Construye nube completa de puntos (Y16MIDP).
-     *
      * @param legislatorCoords Coordenadas de legisladores (NP x NS)
      * @param projections Proyecciones actuales
      * @param votes Votos (codigos: 1=Si, 6=No, 0/9=Ausente)
@@ -211,7 +203,6 @@ namespace
 
     /**
      * Centra una nube de puntos (resta la media de cada dimension).
-     *
      * @param cloud Matriz de puntos a centrar (modifica in-place)
      */
     void centerPointCloud(Eigen::MatrixXd &cloud)
@@ -236,7 +227,6 @@ namespace
 
     /**
      * Construye nube parcial de puntos (X16MIDP).
-     *
      * @param fullCloud Nube completa (Y16MIDP)
      * @param wrongFlags Marcas de legisladores incorrectos
      * @param kastro Numero de puntos a incluir
@@ -278,7 +268,6 @@ namespace
 
     /**
      * Calcula la direccion de minima varianza usando SVD.
-     *
      * @param cloud Matriz de puntos centrada (M x NS)
      * @return Vector de direccion de minima varianza (NS)
      */
@@ -298,7 +287,6 @@ namespace
 
     /**
      * Selecciona la mejor iteracion basado en numero de errores.
-     *
      * @param states Vector de estados de iteracion
      * @return Indice de la mejor iteracion
      */
@@ -512,42 +500,11 @@ SearchResult refineCuttingPlane(
     return result;
 }
 
-bool refineCuttingPlaneInPlace(
-    const Eigen::MatrixXd &legislatorCoords,
-    const std::vector<int> &votes,
-    Eigen::VectorXd &normalVector,
-    double &cuttingPoint,
-    CuttingPolarity &polarity,
-    std::vector<double> &projections,
-    int maxIterations,
-    int &outErrors,
-    int &outTotalClassified)
-{
-    SearchResult result = refineCuttingPlane(
-        legislatorCoords,
-        votes,
-        normalVector,
-        cuttingPoint,
-        polarity,
-        maxIterations);
-
-    // Actualizar parametros de salida
-    normalVector = result.normalVector;
-    cuttingPoint = result.cuttingPoint;
-    polarity = result.polarity;
-    projections = result.projections;
-    outErrors = result.errors;
-    outTotalClassified = result.totalClassified;
-
-    return result.isPerfectClassification;
-}
-
 // CUTPLANE - Orquestador de clasificacion inicial de todas las votaciones
 namespace
 {
     /**
      * Proyecta un legislador sobre el vector normal.
-     *
      * @param legislatorCoords Fila de coordenadas del legislador
      * @param normalVector Vector normal
      * @return Valor de la proyeccion escalar
@@ -561,7 +518,6 @@ namespace
 
     /**
      * Clasifica errores para una votacion y calcula estadisticas.
-     *
      * @param projections Proyecciones finales de legisladores (XXY)
      * @param votes Votos originales (LDATA(:,JX))
      * @param cuttingPoint Punto de corte (WS(JX))
@@ -790,7 +746,6 @@ RollCallClassification classifyRollCall(
 }
 
 // findAllCuttingPlanes: Clasificacion inicial de todas las votaciones (CUTPLANE)
-
 CutplaneResult findAllCuttingPlanes(
     const Eigen::MatrixXd &legislatorCoords,
     Eigen::MatrixXd &normalVectors,

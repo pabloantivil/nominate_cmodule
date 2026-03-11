@@ -87,7 +87,6 @@ private:
 
     /**
      * Realizar interpolación lineal en la tabla.
-     *
      * @param z Puntaje z a buscar
      * @param column Índice de columna (0=z, 1=CDF, 2=logCDF, 3=pdf/CDF)
      * @return Valor interpolado

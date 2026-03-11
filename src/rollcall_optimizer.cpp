@@ -14,13 +14,9 @@
 #include <limits>
 #include <array>
 
-// Buffer global de trabajo (CORRECCION B)
+// Buffer global de trabajo
 // Thread-local para seguridad en caso de uso con OpenMP
 static thread_local RollCallDerivativesWorkBuffer g_rcDerivBuffer;
-
-// ===========================================================================
-// Estructuras auxiliares internas OPTIMIZADAS
-// ===========================================================================
 
 /**
  * Estado de un punto en la busqueda lineal - VERSION OPTIMIZADA.
@@ -62,9 +58,7 @@ struct SearchPoint
     }
 };
 
-/**
- * Estado guardado para backtracking - VERSION OPTIMIZADA.
- */
+// Estado guardado para backtracking - VERSION OPTIMIZADA.
 struct SavedStateOptimized
 {
     std::array<double, MAX_DIMENSIONS> midpoint;
@@ -111,9 +105,7 @@ struct SavedState
 
 // Funciones auxiliares
 
-/**
- *  Protege spread contra valores muy pequenios.
- */
+// Protege spread contra valores muy pequenios.
 static void protectSpread(
     Eigen::VectorXd &spread,
     double minSpread,
@@ -130,7 +122,6 @@ static void protectSpread(
 
 /**
  * Verifica si spread tiene valores protegidos.
- *
  * Retorna true si algun spread fue reseteado.
  */
 static bool checkAndProtectSpread(
@@ -152,7 +143,6 @@ static bool checkAndProtectSpread(
 
 /**
  * Calcula el tamanio de paso normalizado.
- *
  * @param gradientNormSquared Norma al cuadrado del gradiente (SUMB)
  * @param stepUnit Unidad base (0.01)
  * @return Tamano de paso
@@ -166,9 +156,7 @@ static double computeStepSize(double gradientNormSquared, double stepUnit)
     return stepUnit / std::sqrt(gradientNormSquared);
 }
 
-/**
- * Verifica si todas las derivadas son esencialmente cero.
- */
+// Verifica si todas las derivadas son esencialmente cero.
 static bool areDerivativesZero(
     const Eigen::VectorXd &derivatives,
     double tolerance)
@@ -185,7 +173,6 @@ static bool areDerivativesZero(
 
 /**
  * Proyecta midpoint a la superficie de la hiperesfera unitaria.
- *
  * @param midpoint Vector a proyectar (modificado in-place)
  * @return true si se aplico proyeccion
  */
@@ -202,7 +189,6 @@ static bool projectToUnitSphere(Eigen::VectorXd &midpoint)
 
 /**
  * Encuentra el indice del punto con mayor GMP.
- *
  * Usa el patron de RSORT pero simplificado para encontrar el maximo.
  */
 static int findBestPoint(const std::vector<SearchPoint> &points, int numValid)
@@ -228,8 +214,7 @@ static int findBestPoint(const std::vector<SearchPoint> &points, int numValid)
 
 /**
  *  Ejecuta una iteracion de optimizacion de spread.
- *  VERSION OPTIMIZADA: Usa buffer global y funcion optimizada.
- *
+ *  VERSION OPTIMIZADA: Usa buffer global y funcion optimizada
  * @return GMP alcanzado en esta iteracion
  */
 static double optimizeSpreadIteration(
@@ -246,7 +231,7 @@ static double optimizeSpreadIteration(
     const int numDim = static_cast<int>(midpoint.size());
     exitEarly = false;
 
-    // Guardar estado actual usando arrays fijos (CORRECCION A)
+    // Guardar estado actual usando arrays fijos
     SavedStateOptimized saved;
     saved.save(midpoint, spread);
 
@@ -257,7 +242,7 @@ static double optimizeSpreadIteration(
         saved.spread[k] = spread(k);
     }
 
-    // Calcular derivadas con PROLLC2 OPTIMIZADO (CORRECCION E)
+    // Calcular derivadas con PROLLC2 OPTIMIZADO
     auto derivResult = computeRollCallDerivativesOptimized(
         legislatorCoords, rollCallIndex, midpoint, spread,
         votes, weights, normalCDF, g_rcDerivBuffer);
@@ -271,7 +256,7 @@ static double optimizeSpreadIteration(
 
     double currentGMP = derivResult.geometricMeanProb;
 
-    // Normalizar gradiente usando arrays fijos (CORRECCION A)
+    // Normalizar gradiente usando arrays fijos
     std::array<double, MAX_DIMENSIONS> gradSpread;
     double gradNormSq = 0.0;
     for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
@@ -299,7 +284,7 @@ static double optimizeSpreadIteration(
     // Calcular tamanio de paso
     double stepSize = computeStepSize(gradNormSq, config.stepUnit);
 
-    // Busqueda lineal con arrays fijos (CORRECCION A + B)
+    // Busqueda lineal con arrays fijos
     // Preallocamos solo numSearchPoints estructuras livianas
     std::array<SearchPointOptimized, 15> searchPointsFixed; // Max 15 puntos (NINC tipico)
     const int numPts = std::min(config.numSearchPoints, 15);
@@ -316,7 +301,7 @@ static double optimizeSpreadIteration(
             spread(k) = saved.spread[k] - stepAccum * gradSpread[k];
         }
 
-        // Evaluar en este punto (CORRECCION E: funcion optimizada)
+        // Evaluar en este punto
         auto evalResult = computeRollCallDerivativesOptimized(
             legislatorCoords, rollCallIndex, midpoint, spread,
             votes, weights, normalCDF, g_rcDerivBuffer);
@@ -415,7 +400,6 @@ static int optimizeSpreadPhase(
 /**
  * Ejecuta una iteracion de optimizacion de midpoint.
  * VERSION OPTIMIZADA: Usa buffer global y arrays fijos.
- *
  * Incluye restriccion de hiperesfera unitaria.
  */
 static double optimizeMidpointIteration(

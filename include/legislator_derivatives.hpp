@@ -1,6 +1,4 @@
-/**
- * Calculo de derivadas y log-likelihood para parametros de legisladores (PROX)
- */
+// Calculo de derivadas y log-likelihood para parametros de legisladores (PROX)
 
 #ifndef LEGISLATOR_DERIVATIVES_HPP
 #define LEGISLATOR_DERIVATIVES_HPP
@@ -10,9 +8,7 @@
 #include <Eigen/Dense>
 #include <vector>
 
-/**
- * Tipo de modelo temporal para coordenadas de legisladores.
- */
+// Tipo de modelo temporal para coordenadas de legisladores.
 enum class TemporalModel
 {
     Constant = 0,  // NMODEL=0: posicion fija en el tiempo
@@ -21,9 +17,7 @@ enum class TemporalModel
     Cubic = 3      // NMODEL=3: evolucion cubica
 };
 
-/**
- * Informacion de un periodo (congreso) en que sirvio el legislador.
- */
+// Informacion de un periodo (congreso) en que sirvio el legislador.
 struct PeriodInfo
 {
     int dataIndex;      // MARK(kk,1) = MWHERE: indice en XDATA
@@ -42,9 +36,7 @@ struct PeriodInfo
     }
 };
 
-/**
- * Resultado del calculo de derivadas para un legislador.
- */
+// Resultado del calculo de derivadas para un legislador.
 struct LegislatorDerivativesResult
 {
     // Log-likelihood
@@ -79,9 +71,7 @@ struct LegislatorDerivativesResult
     std::vector<int> periodVotes;            // KBIGLOG(MWHERE,1)
     std::vector<int> periodErrors;           // KBIGLOG(MWHERE,3)
 
-    /**
-     * Constructor por defecto.
-     */
+    // Constructor por defecto.
     LegislatorDerivativesResult()
         : logLikelihood(0.0),
           geometricMeanProb(0.0),
@@ -93,7 +83,6 @@ struct LegislatorDerivativesResult
 
     /**
      * Constructor con dimension especificada.
-     *
      * @param numDimensions Numero de dimensiones espaciales (NS)
      * @param numPeriods Numero de periodos en que sirvio el legislador
      */
@@ -118,9 +107,7 @@ struct LegislatorDerivativesResult
     {
     }
 
-    /**
-     * Calcula precision de clasificacion.
-     */
+    // Calcula precision de clasificacion.
     double getAccuracy() const
     {
         return totalVotes > 0
@@ -130,7 +117,6 @@ struct LegislatorDerivativesResult
 
     /**
      * Obtiene el vector de derivadas concatenado segun el modelo temporal.
-     *
      * @param model Tipo de modelo temporal
      * @return Vector de derivadas con dimension apropiada
      */
@@ -173,7 +159,6 @@ struct LegislatorDerivativesResult
 
     /**
      * Obtiene la matriz de informacion segun el modelo temporal.
-     *
      * @param model Tipo de modelo temporal
      * @return Referencia a la matriz de informacion apropiada
      */
@@ -194,9 +179,7 @@ struct LegislatorDerivativesResult
     }
 };
 
-/**
- * Coeficientes del modelo temporal para un legislador.
- */
+// Coeficientes del modelo temporal para un legislador.
 struct TemporalCoefficients
 {
     Eigen::MatrixXd beta; // (4 x NS): beta[i][k] = coeficiente i para dimension k
@@ -225,26 +208,20 @@ struct TemporalCoefficients
         return beta(order, dimension);
     }
 
-    /**
-     * Obtiene fila como vector para una dimension.
-     */
+    // Obtiene fila como vector para una dimension.
     Eigen::VectorXd getForDimension(int dimension) const
     {
         return beta.col(dimension);
     }
 
-    /**
-     * Establece coeficientes para un modelo constante (solo beta_0).
-     */
+    // Establece coeficientes para un modelo constante (solo beta_0).
     void setConstant(const Eigen::VectorXd &beta0)
     {
         beta.row(0) = beta0.transpose();
     }
 };
 
-/**
- * Matriz de tendencias temporales.
- */
+// Matriz de tendencias temporales.
 struct TimeTrends
 {
     Eigen::MatrixXd values; // (numPeriods x 4): [1, t, t^2, t^3]
@@ -284,9 +261,7 @@ struct TimeTrends
     }
 };
 
-/**
- * Informacion sobre los periodos en que sirvio un legislador.
- */
+// Informacion sobre los periodos en que sirvio un legislador.
 struct LegislatorPeriodInfo
 {
     std::vector<bool> served;        // LWHERE: true si sirvio en ese periodo
@@ -317,18 +292,14 @@ struct LegislatorPeriodInfo
         rollCallCounts[period] = numRollCalls;
     }
 
-    /**
-     * Verifica si el legislador sirvio en un periodo.
-     */
+    // Verifica si el legislador sirvio en un periodo.
     bool servedIn(int period) const
     {
         return served[period];
     }
 };
 
-/**
- * Matriz de votos extendida con soporte para multiples periodos.
- */
+// Matriz de votos extendida con soporte para multiples periodos.
 class LegislatorVoteAccess
 {
 public:
@@ -396,21 +367,5 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
     TemporalModel model, // Tipo de modelo temporal
     int firstPeriod, // Primer periodo del rango (NFIRST, 0-based)
     int lastPeriod); // Ultimo periodo del rango (NLAST, 0-based)
-
-/**
- * Version simplificada para modelo constante con un solo periodo.
- * Para testing y casos simples donde no hay evolucion temporal.
- * 
- * @return Resultado con log-likelihood y derivadas para modelo constante
- */
-LegislatorDerivativesResult computeLegislatorDerivativesSimple(
-    const Eigen::VectorXd &legislatorCoords, // Coordenadas actuales del legislador (1 x NS)
-    const Eigen::MatrixXd &rollCallMidpoints, // Puntos medios de votaciones (numRC x NS)
-    const Eigen::MatrixXd &rollCallSpreads, // Spreads de votaciones (numRC x NS)
-    const std::vector<bool> &votes, // Vector de votos del legislador (numRC)
-    const std::vector<bool> &voteMissing, // Vector de missing data (numRC)
-    const std::vector<bool> &validRollCalls, // Mascara de votaciones validas
-    const Eigen::VectorXd &weights, // Vector de pesos [w1, ..., wNS, beta]
-    const NormalCDF &normalCDF); // Tabla CDF precomputada
 
 #endif // LEGISLATOR_DERIVATIVES_HPP

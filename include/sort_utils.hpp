@@ -9,15 +9,11 @@
  * Utilidades de ordenamiento para DW-NOMINATE.
  * RSORT implementa ordenamiento hibrido Quicksort + Insertion Sort que ordena valores
  * en orden ascendente mientras mantiene sincronizado un vector de indices
- *
  * Se usa std::sort con el patron argsort para simplicidad
  */
 
 /**
  * Ordena valores y retorna indices de la permutacion (argsort)
- *
- * Equivalente funcional a RSORT(A, LA, IR) del codigo Fortran
- *
  * @param values Vector de valores a ordenar (no se modifica)
  * @return Vector de indices ordenados [0, n-1] tal que values[indices[i]] esta ordenado
  */
@@ -41,7 +37,6 @@ std::vector<size_t> argsort(const std::vector<T> &values)
 /**
  * Ordena valores de Eigen::VectorXd y retorna indices.
  * Sobrecarga para vectores de Eigen.
- *
  * @param values Eigen::VectorXd con valores a ordenar
  * @return Vector de indices ordenados
  */
@@ -61,7 +56,6 @@ inline std::vector<size_t> argsort(const Eigen::VectorXd &values)
 
 /**
  * Ordena valores en orden DESCENDENTE y retorna indices.
- *
  * @param values Vector de valores a ordenar
  * @return Vector de indices en orden descendente
  */
@@ -81,9 +75,7 @@ std::vector<size_t> argsort_descending(const std::vector<T> &values)
     return indices;
 }
 
-/**
- * Ordena valores de Eigen en orden descendente.
- */
+// Ordena valores de Eigen en orden descendente.
 inline std::vector<size_t> argsort_descending(const Eigen::VectorXd &values)
 {
     const size_t n = values.size();
@@ -100,13 +92,10 @@ inline std::vector<size_t> argsort_descending(const Eigen::VectorXd &values)
 
 /**
  * Aplica una permutacion a un vector usando indices.
- *
  * Reordena los elementos de un vector segun la permutacion especificada.
  * Util si se necesita modificar el vector original
- *
  * @param values Vector a reordenar (se modifica)
  * @param indices Permutacion a aplicar
- *
  */
 template <typename T>
 void applyPermutation(std::vector<T> &values, const std::vector<size_t> &indices)
@@ -119,9 +108,7 @@ void applyPermutation(std::vector<T> &values, const std::vector<size_t> &indices
     values = std::move(temp);
 }
 
-/**
- * Aplica permutacion a Eigen::VectorXd.
- */
+// Aplica permutacion a Eigen::VectorXd.
 inline void applyPermutation(Eigen::VectorXd &values, const std::vector<size_t> &indices)
 {
     Eigen::VectorXd temp(values.size());
@@ -134,7 +121,6 @@ inline void applyPermutation(Eigen::VectorXd &values, const std::vector<size_t> 
 
 /**
  * Interfaz compatible con RSORT de Fortran (modifica in-place).
- *
  * @param values Vector de valores (se modifica in-place)
  * @param indices Vector de indices (se modifica, 1-based)
  */

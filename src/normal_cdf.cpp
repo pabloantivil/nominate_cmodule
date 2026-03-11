@@ -145,7 +145,6 @@ double NormalCDF::gaussOverCdf(double z) const
 std::pair<double, double> NormalCDF::logCdfAndMills(double z) const
 {
     // OPTIMIZADO: Cálculo directo de índice O(1) + una sola búsqueda para ambos valores
-
     // Manejar valores fuera de límites
     if (z <= minZ_)
     {
