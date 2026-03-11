@@ -1,122 +1,118 @@
-# DW-NOMINATE C++ Implementation
+# DW-NOMINATE C++
 
-Una implementación moderna en C++ del algoritmo **DW-NOMINATE** (Dynamic Weighted NOMINAl Three-step Estimation) para el análisis espacial de datos de votaciones políticas. Basado en la implementación de DW-NOMINATE en python (https://github.com/pabloantivil/pynominate -> forked from https://github.com/voteview/pynominate)
+Implementación en C++ del algoritmo **DW-NOMINATE** (Dynamic Weighted NOMINAl Three-step Estimation) para estimar coordenadas ideológicas a partir de datos de votaciones legislativas.
 
-## 📋 Descripción
+## Descripción
 
-DW-NOMINATE es un algoritmo desarrollado por Keith Poole y Howard Rosenthal para estimar las posiciones ideológicas de legisladores y la dificultad de propuestas legislativas en un espacio político multidimensional. Esta implementación utiliza técnicas modernas de optimización no lineal y álgebra lineal para proporcionar estimaciones precisas y eficientes.
+Este proyecto reimplementa el algoritmo DW-NOMINATE originalmente desarrollado en R por Keith Poole y Howard Rosenthal. La implementación en C++ ofrece mejor rendimiento computacional y ha sido validada comparando sus resultados con los outputs generados por el paquete oficial de R (`dwnominate`).
 
-## 🛠️ Tecnologías Utilizadas
+El sistema procesa matrices de votaciones legislativas y estima las posiciones ideológicas de los legisladores en un espacio multidimensional, permitiendo analizar la evolución temporal de estas posiciones.
 
-- **C++14**: Lenguaje de programación principal
-- **[Eigen](https://eigen.tuxfamily.org/)**: Librería de álgebra lineal para operaciones matriciales
-- **[NLopt](https://nlopt.readthedocs.io/)**: Librería de optimización no lineal para estimación de parámetros
-- **CMake**: Sistema de construcción multiplataforma
-- **MinGW**: Compilador GCC para Windows
-
-## 📁 Estructura del Proyecto
+## Estructura del Repositorio
 
 ```
 nominate_cmodule/
-├── CMakeLists.txt          # Configuración de CMake
-├── src/
-│   └── main.cpp           # Archivo principal con pruebas
-├── Eigen/                 # Librería Eigen (headers)
-├── nlopt/                 # Librería NLopt
-│   ├── include/
-│   └── lib/
-└── build/                 # Directorio de compilación
+├── src/                    # Código fuente C++
+├── include/                # Headers
+├── Eigen/                  # Biblioteca de álgebra lineal
+├── input_R/                # Datos de votaciones (entrada)
+├── output_wnominate/       # Coordenadas iniciales W-NOMINATE
+├── output_R_dwnominate_*/  # Parámetros de referencia por modelo
+├── output_cpp/             # Resultados generados (salida)
+├── tests/                  # Tests de validación
+├── build/                  # Directorio de compilación
+└── CMakeLists.txt
 ```
 
-## 🚀 Instalación y Configuración
+## Requisitos del Sistema
 
-### Prerrequisitos
+- **Compilador**: GCC 9+ o compatible con C++17
+- **CMake**: 3.15+
+- **Dependencias**:
+  - OpenMP (paralelización)
+  - NLopt (optimización numérica)
+  - OpenBLAS (opcional, acelera álgebra lineal)
 
-- **CMake** 3.15 o superior
-- **MinGW** con GCC 6.3.0 o superior
-- **Git** (para clonar el repositorio)
+### Instalación de dependencias (MSYS2/MinGW64)
 
-### Pasos de Instalación
-
-1. **Clonar el repositorio:**
-   ```bash
-   git clone https://github.com/[pabloantivil]/nominate_cmodule
-   cd nominate_cmodule
-   ```
-
-2. **Compilar el proyecto:**
-   ```bash
-   mkdir build
-   cd build
-   cmake ..
-   cmake --build .
-   ```
-
-## 🧮 Algoritmo DW-NOMINATE
-
-### Características Principales
-
-- **Análisis espacial**: Mapeo de votaciones en espacios ideológicos multidimensionales
-- **Estimación bayesiana**: Utiliza métodos de máxima verosimilitud para parámetros
-- **Optimización robusta**: Implementa algoritmos L-BFGS para convergencia eficiente
-- **Escalabilidad**: Manejo eficiente de grandes conjuntos de datos de votaciones
-
-### Modelo Matemático
-
-El modelo estima:
-- **Puntos ideales** de legisladores en el espacio político
-- **Parámetros de propuestas** (punto medio y normal al plano de corte)
-- **Probabilidades de voto** basadas en la utilidad espacial
-
-## 📊 Uso
-
-```cpp
-#include <iostream>
-#include <Eigen/Dense>
-#include <nlopt.h>
-
-// Ejemplo básico de optimización con NLopt
-int main() {
-    // Configurar problema de optimización
-    nlopt_opt opt = nlopt_create(NLOPT_LD_LBFGS, 2);
-    
-    // Implementar función objetivo DW-NOMINATE
-    nlopt_set_min_objective(opt, nominate_objective, nullptr);
-    
-    // Ejecutar optimización
-    double x[2] = {0.0, 0.0};
-    double minf;
-    nlopt_optimize(opt, x, &minf);
-    
-    // Resultados
-    std::cout << "Posición estimada: (" << x[0] << ", " << x[1] << ")" << std::endl;
-    
-    nlopt_destroy(opt);
-    return 0;
-}
+```bash
+pacman -S mingw-w64-x86_64-cmake mingw-w64-x86_64-nlopt mingw-w64-x86_64-openblas
 ```
 
-## 🔬 Casos de Uso
+## Compilación
 
-- **Análisis de congresos**: Mapeo ideológico de legisladores
-- **Estudios comparativos**: Análisis temporal de polarización política
-- **Investigación académica**: Estudios de comportamiento legislativo
-- **Consultorías políticas**: Análisis estratégico de votaciones
+```bash
+mkdir build && cd build
+cmake .. -G "MinGW Makefiles"
+mingw32-make -j4
+```
 
-## 📚 Referencias
+El ejecutable `dwnominate.exe` se genera en el directorio `build/`.
 
-- Poole, Keith T., and Howard Rosenthal. *Congress: A Political-Economic History of Roll Call Voting*. Oxford University Press, 1997.
-- Lewis, Jeffrey B., et al. "Voteview: Congressional roll-call votes database." (2021).
-- Clinton, Joshua, Simon Jackman, and Douglas Rivers. "The statistical analysis of roll call data." *American Political Science Review* 98.2 (2004): 355-370.
+## Uso
 
-## 👨‍💻 Autor
+```bash
+./dwnominate [opciones]
+```
 
-**[Pablo Antivil]**
-- GitHub: [@pabloantivil](https://github.com/pabloantivil)
-- Email: p.antivilmorales@gmail.com
+### Opciones
 
-## 🙏 Agradecimientos
+| Opción | Descripción | Default |
+|--------|-------------|---------|
+| `--model=<0\|1\|2\|3>` | Modelo temporal: 0=constante, 1=lineal, 2=cuadrático, 3=cúbico | 1 |
+| `--iterations=<n>` | Número de iteraciones | 4 |
+| `--periods=<n>` | Número de períodos legislativos | auto-detectar |
+| `--dimensions=<n>` | Dimensiones espaciales | 2 |
+| `--input-dir=<path>` | Directorio de votaciones | input_R |
+| `--output-dir=<path>` | Directorio de salida | output_cpp |
+| `--verbose` | Mostrar progreso detallado | - |
+| `--help` | Mostrar ayuda | - |
 
-- Keith Poole y Howard Rosenthal por el desarrollo original del algoritmo DW-NOMINATE
-- Comunidad de Eigen por la excelente librería de álgebra lineal
-- Desarrolladores de NLopt por las herramientas de optimización
+### Ejemplos
+
+```bash
+# Ejecutar con modelo lineal y 10 iteraciones
+./dwnominate --model=1 --iterations=10 --verbose
+
+# Ejecutar con modelo constante
+./dwnominate --model=0 --iterations=4
+
+# Especificar directorios personalizados
+./dwnominate --input-dir=mis_datos --output-dir=resultados --periods=5
+```
+
+## Inputs Requeridos
+
+| Archivo | Ubicación | Descripción |
+|---------|-----------|-------------|
+| Matrices de votación | `input_R/votes_matrix_p*.csv` | Votaciones por período (1=Sí, 6=No, 9=Ausente) |
+| Coordenadas iniciales | `output_wnominate/wnominate_coordinates.csv` | Estimaciones W-NOMINATE como punto de partida |
+| Parámetros de bills | `output_R_dwnominate_model*/dwnominate_bill_parameters.csv` | Cutting points y spreads de referencia |
+
+## Outputs Generados
+
+Los resultados se exportan a `output_cpp/`:
+
+| Archivo | Contenido |
+|---------|-----------|
+| `cpp_coordinates_all_periods.csv` | Coordenadas ideológicas por legislador y período |
+| `cpp_bill_parameters.csv` | Parámetros estimados de cada votación |
+| `cpp_summary.csv` | Estadísticas globales del modelo |
+
+## Validación
+
+El proyecto incluye un validador que compara los resultados de C++ contra los outputs de R:
+
+```bash
+./test_validate_csv
+```
+
+## Referencias
+
+- Poole, K. T., & Rosenthal, H. (1985). A Spatial Model for Legislative Roll Call Analysis. *American Journal of Political Science*.
+- Poole, K. T. (2005). *Spatial Models of Parliamentary Voting*. Cambridge University Press.
+- [Paquete dwnominate en R](https://github.com/wmay/dwnominate)
+
+## Licencia
+
+Este proyecto es de uso académico y de investigación.
