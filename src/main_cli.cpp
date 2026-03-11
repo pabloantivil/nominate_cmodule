@@ -384,18 +384,18 @@ int main(int argc, char *argv[])
     }
 
     // Mostrar configuración
-    std::cout << "Configuración:\n";
+    std::cout << "Configuracion:\n";
     std::cout << "  Input:      " << config.inputDir << "\n";
     std::cout << "  Output:     " << config.outputDir << "\n";
     std::cout << "  WNOMINATE:  " << config.wnominatePath << "\n";
     std::cout << "  Modelo:     " << config.temporalModel
               << (config.temporalModel == 0   ? " (constante)"
                   : config.temporalModel == 1 ? " (lineal)"
-                  : config.temporalModel == 2 ? " (cuadrático)"
-                                              : " (cúbico)")
+                  : config.temporalModel == 2 ? " (cuadratico)"
+                                              : " (cubico)")
               << "\n";
     std::cout << "  Iteraciones:" << config.iterations << "\n";
-    std::cout << "  Períodos:   " << config.periods << "\n";
+    std::cout << "  Periodos:   " << config.periods << "\n";
     std::cout << "  Dimensiones:" << config.dimensions << "\n";
     std::cout << "  Beta:       " << config.beta << "\n";
     std::cout << "  W2:         " << config.w2 << "\n\n";
@@ -406,13 +406,15 @@ int main(int argc, char *argv[])
     // Cargar datos
     std::cout << "Cargando datos...\n";
 
-    // Determinar directorio de referencia R para bill params
-    std::string refDir = "output_R_dwnominate"; // Default
+    // Determinar directorio de referencia R basado en modelo temporal
+    std::string refDir = "output_R_dwnominate_model" + std::to_string(config.temporalModel);
     if (!config.billParamsPath.empty())
     {
         fs::path billPath(config.billParamsPath);
         refDir = billPath.parent_path().string();
     }
+
+    std::cout << "  Ref. R:     " << refDir << "\n";
 
     CSVLoader loader(config.inputDir, refDir);
     DWNominateInput input;
@@ -467,7 +469,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
-        std::cerr << "ERROR en ejecución: " << e.what() << "\n";
+        std::cerr << "ERROR en ejecucion: " << e.what() << "\n";
         return 1;
     }
 
@@ -485,7 +487,7 @@ int main(int argc, char *argv[])
     std::cout << "\nResultados:\n";
     std::cout << "  Log-likelihood: " << std::fixed << std::setprecision(4) << result.finalLogLikelihood << "\n";
     std::cout << "  Iteraciones:    " << result.totalIterations << "\n";
-    std::cout << "  Clasificación:  " << result.classificationAfter << "/" << result.totalValidVotes
+    std::cout << "  Clasificacion:  " << result.classificationAfter << "/" << result.totalValidVotes
               << " (" << std::setprecision(2) << classPctMain << "%)\n";
     std::cout << "  W1=" << std::setprecision(4) << result.weights(0)
               << ", W2=" << result.weights(1)

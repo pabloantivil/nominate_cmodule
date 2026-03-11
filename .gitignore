@@ -10,10 +10,10 @@ Makefile
 /docs
 /output_cpp
 /output_R_dwnominate
-/output_R_dwnominate_4iter_model0
-/output_R_dwnominate_4iter_model1
-/output_R_dwnominate_4iter_model2
-/output_R_dwnominate_4iter_model3
+/output_R_dwnominate_model0
+/output_R_dwnominate_model1
+/output_R_dwnominate_model2
+/output_R_dwnominate_model3
 /output_R_dwnominate_10iter_model1
 /output_wnominate
 /input_R
