@@ -115,4 +115,6 @@ El proyecto incluye un validador que compara los resultados de C++ contra los ou
 
 ## Licencia
 
-Este proyecto es de uso académico y de investigación.
+Este proyecto está licenciado bajo la **MIT License** — consulta el archivo [LICENSE](LICENSE) para más detalles.
+
+© 2026 Pablo Antivil. Si usas este código en tu investigación o proyecto, por favor da crédito al autor original.
