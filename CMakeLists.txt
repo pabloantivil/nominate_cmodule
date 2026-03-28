@@ -50,7 +50,7 @@ target_link_libraries(dwnominate
 )
 target_link_directories(dwnominate PRIVATE ${NLOPT_LIBRARY_DIRS})
 target_compile_definitions(dwnominate PRIVATE USE_OPENMP)
-target_compile_options(dwnominate PRIVATE -O3 -march=native -DNDEBUG)
+target_compile_options(dwnominate PRIVATE -O3 -march=native -ffast-math -DNDEBUG)
 
 if(BLAS_FOUND)
     target_link_libraries(dwnominate ${BLAS_LIBRARIES})

@@ -7,6 +7,7 @@
 #include "legislator_derivatives.hpp"
 #include <cmath>
 #include <algorithm>
+#include <array>
 
 namespace
 {
@@ -63,52 +64,40 @@ namespace
      * Geometria DW-NOMINATE:
      * - Punto Yes = zmid - dyn
      * - Punto No = zmid + dyn
-     *
-     * @param coords Coordenadas del legislador
-     * @param midpoint Punto medio del roll call
-     * @param spread Spread del roll call
-     * @param numDim Numero de dimensiones
-     * @param dyesSquared [out] Distancias al cuadrado hacia Yes
-     * @param dnoSquared [out] Distancias al cuadrado hacia No
-     * @param dyesLinear [out] Distancias lineales hacia Yes (para derivadas)
-     * @param dnoLinear [out] Distancias lineales hacia No (para derivadas)
+     * Optimizacion: Usa raw arrays para evitar heap allocations.
      */
-    void computeDistances(
+    void computeDistancesOpt(
         const Eigen::VectorXd &coords,
-        const Eigen::VectorXd &midpoint,
-        const Eigen::VectorXd &spread,
+        const double *midpoint,
+        const double *spread,
         int numDim,
-        Eigen::VectorXd &dyesSquared,
-        Eigen::VectorXd &dnoSquared,
-        Eigen::VectorXd &dyesLinear,
-        Eigen::VectorXd &dnoLinear)
+        double *dyesSquared,
+        double *dnoSquared,
+        double *dyesLinear,
+        double *dnoLinear)
     {
         for (int k = 0; k < numDim; ++k)
         {
             // Punto Yes = zmid - dyn
-            double diffYes = coords(k) - midpoint(k) + spread(k);
+            double diffYes = coords(k) - midpoint[k] + spread[k];
             // Punto No = zmid + dyn
-            double diffNo = coords(k) - midpoint(k) - spread(k);
+            double diffNo = coords(k) - midpoint[k] - spread[k];
 
-            dyesSquared(k) = diffYes * diffYes;
-            dnoSquared(k) = diffNo * diffNo;
-            dyesLinear(k) = diffYes;
-            dnoLinear(k) = diffNo;
+            dyesSquared[k] = diffYes * diffYes;
+            dnoSquared[k] = diffNo * diffNo;
+            dyesLinear[k] = diffYes;
+            dnoLinear[k] = diffNo;
         }
     }
 
     /**
      * Calcula utilidades ponderadas para ambas opciones de voto.
-     * @param dyesSquared Distancias al cuadrado hacia Yes
-     * @param dnoSquared Distancias al cuadrado hacia No
-     * @param weights Vector de pesos
-     * @param numDim Numero de dimensiones
-     * @return Par (utilidadOpcionElegida, utilidadOpcionContraria)
+     * Optimizacion: Usa raw arrays y pesos pre-calculados.
      */
-    std::pair<double, double> computeUtilities(
-        const Eigen::VectorXd &dyesSquared,
-        const Eigen::VectorXd &dnoSquared,
-        const Eigen::VectorXd &weights,
+    std::pair<double, double> computeUtilitiesOpt(
+        const double *dyesSquared,
+        const double *dnoSquared,
+        const double *weightsSquared,
         int numDim,
         bool voteYes)
     {
@@ -117,16 +106,16 @@ namespace
 
         for (int k = 0; k < numDim; ++k)
         {
-            double wk2 = weights(k) * weights(k);
+            double wk2 = weightsSquared[k];
             if (voteYes)
             {
-                utilityChosen += -wk2 * dyesSquared(k);
-                utilityOther += -wk2 * dnoSquared(k);
+                utilityChosen -= wk2 * dyesSquared[k];
+                utilityOther -= wk2 * dnoSquared[k];
             }
             else
             {
-                utilityChosen += -wk2 * dnoSquared(k);
-                utilityOther += -wk2 * dyesSquared(k);
+                utilityChosen -= wk2 * dnoSquared[k];
+                utilityOther -= wk2 * dyesSquared[k];
             }
         }
 
@@ -135,80 +124,55 @@ namespace
 
     /**
      * Calcula derivadas base respecto a coordenadas del legislador.
-     * @param dyesLinear Distancias lineales hacia Yes
-     * @param dnoLinear Distancias lineales hacia No
-     * @param weights Pesos dimensionales
-     * @param expDC exp(utilidad opcion elegida)
-     * @param expDB exp(utilidad opcion contraria)
-     * @param millsRatio phi(ZS)/Phi(ZS)
-     * @param voteYes true si voto fue Si
-     * @param numDim Numero de dimensiones
-     * @return Vector de derivadas base (NS)
+     * Optimizacion: Usa raw arrays, pesos pre-calculados, escribe directamente en array de salida.
      */
-    Eigen::VectorXd computeBaseDerivatives(
-        const Eigen::VectorXd &dyesLinear,
-        const Eigen::VectorXd &dnoLinear,
-        const Eigen::VectorXd &weights,
+    void computeBaseDerivativesOpt(
+        const double *dyesLinear,
+        const double *dnoLinear,
+        const double *weightsSquared,
         double expDC,
         double expDB,
         double millsRatio,
         bool voteYes,
-        int numDim)
+        int numDim,
+        double *derivs)
     {
-        Eigen::VectorXd derivs(numDim);
-
         for (int k = 0; k < numDim; ++k)
         {
-            double wk2 = weights(k) * weights(k);
+            double wk2 = weightsSquared[k];
             double dcc1, dbb1;
 
             if (voteYes)
             {
-                dcc1 = dyesLinear(k) * wk2;
-                dbb1 = dnoLinear(k) * wk2;
+                dcc1 = dyesLinear[k] * wk2;
+                dbb1 = dnoLinear[k] * wk2;
             }
             else
             {
-                dcc1 = dnoLinear(k) * wk2;
-                dbb1 = dyesLinear(k) * wk2;
+                dcc1 = dnoLinear[k] * wk2;
+                dbb1 = dyesLinear[k] * wk2;
             }
 
-            derivs(k) = millsRatio * (dcc1 * expDC - dbb1 * expDB);
+            derivs[k] = millsRatio * (dcc1 * expDC - dbb1 * expDB);
         }
-
-        return derivs;
     }
 
     /**
      * Expande derivadas base a derivadas para modelo temporal.
-     * @param baseDerivs Derivadas base (dL/dx_k)
-     * @param timeTrends Valores temporales
-     * @param periodIndex Indice del periodo
-     * @param model Modelo temporal
-     * @param numDim Numero de dimensiones
-     * @return Vector de derivadas expandido
+     * Optimizacion: Usa raw arrays.
      */
-    Eigen::VectorXd expandDerivativesForModel(
-        const Eigen::VectorXd &baseDerivs,
+    void expandDerivativesForModelOpt(
+        const double *baseDerivs,
         const TimeTrends &timeTrends,
         int periodIndex,
         TemporalModel model,
-        int numDim)
+        int numDim,
+        double *expanded)
     {
-        int size = numDim;
-        if (model == TemporalModel::Linear)
-            size = 2 * numDim;
-        else if (model == TemporalModel::Quadratic)
-            size = 3 * numDim;
-        else if (model == TemporalModel::Cubic)
-            size = 4 * numDim;
-
-        Eigen::VectorXd expanded(size);
-
         // Derivadas respecto a beta_0 (constante)
         for (int k = 0; k < numDim; ++k)
         {
-            expanded(k) = baseDerivs(k);
+            expanded[k] = baseDerivs[k];
         }
 
         // Derivadas respecto a beta_1 (lineal)
@@ -217,7 +181,7 @@ namespace
             double t = timeTrends(periodIndex, 1);
             for (int k = 0; k < numDim; ++k)
             {
-                expanded(numDim + k) = t * baseDerivs(k);
+                expanded[numDim + k] = t * baseDerivs[k];
             }
         }
 
@@ -227,7 +191,7 @@ namespace
             double t2 = timeTrends(periodIndex, 2);
             for (int k = 0; k < numDim; ++k)
             {
-                expanded(2 * numDim + k) = t2 * baseDerivs(k);
+                expanded[2 * numDim + k] = t2 * baseDerivs[k];
             }
         }
 
@@ -237,29 +201,25 @@ namespace
             double t3 = timeTrends(periodIndex, 3);
             for (int k = 0; k < numDim; ++k)
             {
-                expanded(3 * numDim + k) = t3 * baseDerivs(k);
+                expanded[3 * numDim + k] = t3 * baseDerivs[k];
             }
         }
-
-        return expanded;
     }
 
     /**
      * Actualiza la matriz de informacion con producto externo.
-     * @param infoMatrix Matriz a actualizar
-     * @param derivs Vector de derivadas
-     * @param size Dimension de la matriz a usar
+     * Optimizacion: Usa raw arrays.
      */
-    void updateInfoMatrix(
+    void updateInfoMatrixOpt(
         Eigen::MatrixXd &infoMatrix,
-        const Eigen::VectorXd &derivs,
+        const double *derivs,
         int size)
     {
         for (int j = 0; j < size; ++j)
         {
             for (int i = 0; i < size; ++i)
             {
-                infoMatrix(i, j) += derivs(j) * derivs(i);
+                infoMatrix(i, j) += derivs[j] * derivs[i];
             }
         }
     }
@@ -284,6 +244,13 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
 {
     int numDim = static_cast<int>(weights.size()) - 1;
     double beta = weights(numDim);
+
+    // Opt: Pre-calcular pesos al cuadrado
+    std::array<double, MAX_DIMENSIONS> weightsSquared;
+    for (int k = 0; k < numDim && k < MAX_DIMENSIONS; ++k)
+    {
+        weightsSquared[k] = weights(k) * weights(k);
+    }
 
     // Contar periodos en que sirvio el legislador
     int numPeriodsServed = 0;
@@ -337,11 +304,15 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
         currentOffset += nq;
     }
 
-    // Variables temporales para calculo
-    Eigen::VectorXd dyesSquared(numDim);
-    Eigen::VectorXd dnoSquared(numDim);
-    Eigen::VectorXd dyesLinear(numDim);
-    Eigen::VectorXd dnoLinear(numDim);
+    // Opt: Variables temporales en stack (evita heap allocations)
+    std::array<double, MAX_DIMENSIONS> dyesSquared;
+    std::array<double, MAX_DIMENSIONS> dnoSquared;
+    std::array<double, MAX_DIMENSIONS> dyesLinear;
+    std::array<double, MAX_DIMENSIONS> dnoLinear;
+    std::array<double, MAX_DIMENSIONS> baseDerivs;
+    std::array<double, 4 * MAX_DIMENSIONS> expandedDerivs; // 4*NS para modelo cubico
+    std::array<double, MAX_DIMENSIONS> midpoint_arr;
+    std::array<double, MAX_DIMENSIONS> spread_arr;
 
     // Iterar sobre cada periodo en que sirvio el legislador
     for (size_t periodIdx = 0; periodIdx < servedPeriods.size(); ++periodIdx)
@@ -378,20 +349,24 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
                 continue;
             }
 
-            // Obtener parametros del roll call
-            Eigen::VectorXd midpoint = rollCallMidpoints.row(globalRC).transpose();
-            Eigen::VectorXd spread = rollCallSpreads.row(globalRC).transpose();
+            // Opt: Obtener parametros del roll call sin heap allocation
+            for (int k = 0; k < numDim; ++k)
+            {
+                midpoint_arr[k] = rollCallMidpoints(globalRC, k);
+                spread_arr[k] = rollCallSpreads(globalRC, k);
+            }
 
-            // Calcular distancias
-            computeDistances(coords, midpoint, spread, numDim,
-                             dyesSquared, dnoSquared, dyesLinear, dnoLinear);
+            // Calcular distancias (version optimizada con raw arrays)
+            computeDistancesOpt(coords, midpoint_arr.data(), spread_arr.data(), numDim,
+                                dyesSquared.data(), dnoSquared.data(),
+                                dyesLinear.data(), dnoLinear.data());
 
             // Obtener voto - VERSION SIN BOUNDS CHECK
             bool voteYes = votes.getVoteUnsafe(mwhere, globalRC);
 
-            // Calcular utilidades
-            auto [utilChosen, utilOther] = computeUtilities(
-                dyesSquared, dnoSquared, weights, numDim, voteYes);
+            // Calcular utilidades (version optimizada con pesos pre-calculados)
+            auto [utilChosen, utilOther] = computeUtilitiesOpt(
+                dyesSquared.data(), dnoSquared.data(), weightsSquared.data(), numDim, voteYes);
 
             // Calcular ZS (diferencia de utilidades escalada)
             double expDC = std::exp(utilChosen);
@@ -408,7 +383,7 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
                 result.positiveZS++;
             }
 
-            // OPTIMIZADO: Una sola búsqueda para logCdf y millsRatio
+            // Opt: Una sola búsqueda para logCdf y millsRatio
             auto [logCdf, millsRatio] = normalCDF.logCdfAndMills(zs);
 
             // Actualizar log-likelihood
@@ -423,40 +398,39 @@ LegislatorDerivativesResult computeLegislatorDerivatives(
                 periodErrorCount++;
             }
 
-            // Calcular derivadas base
-            Eigen::VectorXd baseDerivs = computeBaseDerivatives(
-                dyesLinear, dnoLinear, weights, expDC, expDB, millsRatio,
-                voteYes, numDim);
+            // Calcular derivadas base 
+            computeBaseDerivativesOpt(
+                dyesLinear.data(), dnoLinear.data(), weightsSquared.data(),
+                expDC, expDB, millsRatio, voteYes, numDim, baseDerivs.data());
 
             // Acumular derivadas por termino temporal
             for (int k = 0; k < numDim; ++k)
             {
-                result.derivatives0(k) += baseDerivs(k);
-                result.derivatives1(k) += timeTrends(jj, 1) * baseDerivs(k);
-                result.derivatives2(k) += timeTrends(jj, 2) * baseDerivs(k);
-                result.derivatives3(k) += timeTrends(jj, 3) * baseDerivs(k);
+                result.derivatives0(k) += baseDerivs[k];
+                result.derivatives1(k) += timeTrends(jj, 1) * baseDerivs[k];
+                result.derivatives2(k) += timeTrends(jj, 2) * baseDerivs[k];
+                result.derivatives3(k) += timeTrends(jj, 3) * baseDerivs[k];
             }
 
             // Expandir derivadas segun modelo temporal
-            Eigen::VectorXd expandedDerivs = expandDerivativesForModel(
-                baseDerivs, timeTrends, jj, model, numDim);
+            expandDerivativesForModelOpt(
+                baseDerivs.data(), timeTrends, jj, model, numDim, expandedDerivs.data());
 
-            // Actualizar matrices de informacion
             // Siempre actualizar OUTX0 (modelo constante)
-            updateInfoMatrix(result.infoMatrix0, expandedDerivs, numDim);
+            updateInfoMatrixOpt(result.infoMatrix0, expandedDerivs.data(), numDim);
 
             // Actualizar segun modelo
             if (model >= TemporalModel::Linear)
             {
-                updateInfoMatrix(result.infoMatrix1, expandedDerivs, 2 * numDim);
+                updateInfoMatrixOpt(result.infoMatrix1, expandedDerivs.data(), 2 * numDim);
             }
             if (model >= TemporalModel::Quadratic)
             {
-                updateInfoMatrix(result.infoMatrix2, expandedDerivs, 3 * numDim);
+                updateInfoMatrixOpt(result.infoMatrix2, expandedDerivs.data(), 3 * numDim);
             }
             if (model >= TemporalModel::Cubic)
             {
-                updateInfoMatrix(result.infoMatrix3, expandedDerivs, 4 * numDim);
+                updateInfoMatrixOpt(result.infoMatrix3, expandedDerivs.data(), 4 * numDim);
             }
         }
 
