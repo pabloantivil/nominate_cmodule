@@ -42,14 +42,29 @@ struct DWNominateConfig
     double marginThreshold; // Umbral de margen (0.025)
     bool verbose;           // Imprimir mensajes de progreso
 
-    // Modo validación: fijar parámetros globales 
+    // Modo validación: fijar parámetros globales
     bool fixGlobalParams; // Si true, NO re-estima W2 ni Beta (para diagnostico)
 
-    // Modo validación: fijar parámetros de roll calls 
+    // Modo validación: fijar parámetros de roll calls
     bool fixRollCalls; // Si true, NO re-estima cutting planes (usa valores cargados)
 
-    // Modo validación: fijar coordenadas de legisladores 
+    // Modo validación: fijar coordenadas de legisladores
     bool fixLegislators; // Si true, NO optimiza coordenadas (solo calcula likelihood)
+
+    // Internal convergence logging: directory for CSV output (empty = disabled)
+    std::string internalLogDir;
+
+    // --- Criterio de convergencia automática ---
+    // Si autoConverge=true, el algoritmo se detiene cuando ||Δx||₂ < convergenceTol
+    // durante stabilityWindow iteraciones consecutivas, respetando min/maxIterations.
+    // Si autoConverge=false (default), se usa el loop fijo [firstIteration, lastIteration].
+    bool autoConverge;     // true = modo automático; false = iteraciones fijas
+    double convergenceTol; // Tolerancia RMS(dx) normalizada (default 0.025).
+                           //   Significado: desplazamiento promedio < tol unidades por coordenada.
+                           //   Independiente del N de legisladores y dimensiones.
+    int minIterations;     // Iteraciones mínimas antes de evaluar parada (default 3)
+    int maxIterations;     // Cap de seguridad para el modo automático (default 50)
+    int stabilityWindow;   // Nro de iters consecutivas bajo tol para converger (default 3)
 
     DWNominateConfig()
         : numDimensions(2),
@@ -60,9 +75,14 @@ struct DWNominateConfig
           lastIteration(1),
           marginThreshold(0.025),
           verbose(false),
-          fixGlobalParams(false), // Por defecto: modo normal
-          fixRollCalls(false),    // Por defecto: re-estimar roll calls
-          fixLegislators(false)   // Por defecto: optimizar legisladores
+          fixGlobalParams(false),
+          fixRollCalls(false),
+          fixLegislators(false),
+          autoConverge(false),
+          convergenceTol(0.025),
+          minIterations(3),
+          maxIterations(50),
+          stabilityWindow(3)
     {
     }
 };
@@ -233,6 +253,10 @@ struct DWNominateResult
     // Numero de iteraciones ejecutadas
     int totalIterations;
 
+    // Convergencia automática
+    bool convergedByTolerance; // true si el algoritmo paró por criterio, no por max iters
+    double finalCoordDelta;    // ||Δx||₂ en la última iteración completada
+
     // Clasificacion antes/despues de roll calls
     int classificationBefore;
     int classificationAfter;
@@ -254,6 +278,8 @@ struct DWNominateResult
     DWNominateResult()
         : finalLogLikelihood(0.0),
           totalIterations(0),
+          convergedByTolerance(false),
+          finalCoordDelta(-1.0),
           classificationBefore(0),
           classificationAfter(0),
           totalValidVotes(0),
@@ -606,5 +632,15 @@ private:
     void reconstructLegislatorCoords(
         const LegislatorPresence &presence,
         const TemporalCoefficients &coefficients);
+
+    // Internal convergence logging
+    Eigen::MatrixXd prevLegislatorCoords_;
+    Eigen::MatrixXd prevRollCallMidpoints_;
+    Eigen::MatrixXd prevRollCallSpreads_;
+    bool hasPrevSnapshot_ = false;
+    int phaseSeqCounter_ = 0;
+
+    void initInternalLog();
+    void logInternalSnapshot(int iteration, const std::string &phase);
 };
 #endif // DWNOMINATE_HPP
