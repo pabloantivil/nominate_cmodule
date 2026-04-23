@@ -5,11 +5,14 @@
 
 #include "dwnominate.hpp"
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 #include <cmath>
 #include <algorithm>
 #include <limits>
 #include <chrono>
 #include <set>
+#include <filesystem>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -277,10 +280,37 @@ DWNominateResult DWNominate::run()
 
     auto iterStart = std::chrono::high_resolution_clock::now();
 
+    // Initialize internal convergence logging
+    initInternalLog();
+    if (!config_.internalLogDir.empty())
+    {
+        currentLogLikelihood_ = computeLogLikelihood();
+        logInternalSnapshot(0, "INIT");
+    }
+
+    // --- Estado para criterio de convergencia automática ---
+    // Snapshot de coordenadas de la iteración anterior (para calcular ||Δx||₂)
+    Eigen::MatrixXd coordSnapshot;
+    double llSnapshot = 0.0;
+    int stableCount = 0; // iteraciones consecutivas con ||Δx||₂ < convergenceTol
+
+    // Determinar límites del loop
+    // - Modo fijo (default): usa firstIteration..lastIteration como antes
+    // - Modo auto-converge: usa firstIteration..maxIterations con parada temprana
+    const int loopMax = config_.autoConverge ? config_.maxIterations
+                                             : config_.lastIteration;
+
     // Bucle principal IHAPPY
-    for (int ihappy = config_.firstIteration; ihappy <= config_.lastIteration; ++ihappy)
+    for (int ihappy = config_.firstIteration; ihappy <= loopMax; ++ihappy)
     {
         log("=== Iteracion global " + std::to_string(ihappy) + " ===");
+
+        // Snapshot ANTES de las 4 fases (para Δx al final de la iteración)
+        if (config_.autoConverge)
+        {
+            coordSnapshot = legislatorCoords_;
+            llSnapshot = currentLogLikelihood_;
+        }
 
         // Fase de pesos dimensionales (WINT)
         if (ns >= 2)
@@ -298,6 +328,7 @@ DWNominateResult DWNominate::run()
                 g_wintTimeMs += std::chrono::duration<double, std::milli>(phaseEnd - phaseStart).count();
             }
         }
+        logInternalSnapshot(ihappy, "WINT");
 
         // Fase de beta (SIGMAS)
         if (config_.fixGlobalParams)
@@ -312,6 +343,7 @@ DWNominateResult DWNominate::run()
             auto phaseEnd = std::chrono::high_resolution_clock::now();
             g_sigmasTimeMs += std::chrono::duration<double, std::milli>(phaseEnd - phaseStart).count();
         }
+        logInternalSnapshot(ihappy, "SIGMAS");
 
         // Fase de roll calls
         if (config_.fixRollCalls)
@@ -329,6 +361,7 @@ DWNominateResult DWNominate::run()
 
         // PLOG despues de roll calls
         currentLogLikelihood_ = computeLogLikelihood();
+        logInternalSnapshot(ihappy, "RC");
 
         // Fase de legisladores
         if (config_.fixLegislators)
@@ -346,6 +379,7 @@ DWNominateResult DWNominate::run()
 
         // PLOG despues de legisladores
         currentLogLikelihood_ = computeLogLikelihood();
+        logInternalSnapshot(ihappy, "LEG");
 
         result.totalIterations = ihappy;
 
@@ -358,8 +392,62 @@ DWNominateResult DWNominate::run()
                   << "RC=" << (g_rcTimeMs / 1000.0) << "s, "
                   << "LEG=" << (g_legTimeMs / 1000.0) << "s, "
                   << "Total=" << elapsedSec << "s\n";
+
+        // --- Evaluación del criterio de convergencia (solo en modo auto) ---
+        if (config_.autoConverge && coordSnapshot.size() > 0)
+        {
+            // Metrica: cambio RMS por coordenada (norma de Frobenius normalizada).
+            // Dividir por sqrt(N*D) hace la tolerancia independiente del tamano del modelo
+            // e interpretable: tol=0.025 significa "desplazamiento promedio < 0.025 unidades
+            // por coordenada por iteracion" en el espacio ideologico [-1, 1].
+            const int nCoords = static_cast<int>(legislatorCoords_.size()); // rows x cols
+            const double sqrtN = std::sqrt(static_cast<double>(nCoords));
+            double coordDelta = (legislatorCoords_ - coordSnapshot).norm() / sqrtN;
+
+            // Metrica secundaria: cambio relativo en log-likelihood
+            double llDelta = (llSnapshot != 0.0)
+                                 ? std::abs(currentLogLikelihood_ - llSnapshot) / std::abs(llSnapshot)
+                                 : std::abs(currentLogLikelihood_ - llSnapshot);
+
+            result.finalCoordDelta = coordDelta;
+
+            std::cout << "[CONVERGENCIA iter " << ihappy << "] "
+                      << "RMS(Dx)=" << std::scientific << std::setprecision(6) << coordDelta
+                      << "  |DLL|/|LL|=" << llDelta
+                      << "  tol=" << config_.convergenceTol
+                      << "  estables=" << stableCount << "/" << config_.stabilityWindow << "\n"
+                      << std::defaultfloat;
+
+            // Verificar si la metrica principal esta bajo la tolerancia
+            if (ihappy >= config_.minIterations && coordDelta < config_.convergenceTol)
+            {
+                ++stableCount;
+                if (stableCount >= config_.stabilityWindow)
+                {
+                    result.convergedByTolerance = true;
+                    std::cout << "\n[CONVERGENCIA] Criterio satisfecho en iteracion " << ihappy
+                              << ": RMS(Dx)=" << coordDelta
+                              << " < tol=" << config_.convergenceTol
+                              << " durante " << stableCount << " iters consecutivas.\n\n";
+                    break;
+                }
+            }
+            else
+            {
+                // Si la métrica supera la tolerancia, reiniciar contador de estabilidad
+                stableCount = 0;
+            }
+        }
     }
-    // Fin bucle 9999
+    // Fin bucle IHAPPY
+
+    // Si llegamos al máximo en modo auto sin converger, reportarlo
+    if (config_.autoConverge && !result.convergedByTolerance)
+    {
+        std::cout << "[CONVERGENCIA] No se alcanzó convergencia en "
+                  << result.totalIterations << " iteraciones (max=" << config_.maxIterations
+                  << "). Considerar aumentar --max-iterations o revisar tolerancia.\n\n";
+    }
 
     // Reporte final de tiempos
     std::cout << "\n========== RESUMEN DE TIEMPOS ==========\n";
@@ -1508,4 +1596,137 @@ void DWNominate::reconstructLegislatorCoords(
 
         periodIdx++;
     }
+}
+
+// ==================== INTERNAL CONVERGENCE LOGGING ====================
+
+void DWNominate::initInternalLog()
+{
+    if (config_.internalLogDir.empty())
+        return;
+
+    namespace fs = std::filesystem;
+    fs::create_directories(config_.internalLogDir);
+
+    // Write metrics header
+    {
+        std::ofstream f(config_.internalLogDir + "/internal_convergence.csv");
+        f << "global_iter,phase,phase_seq,log_likelihood,w2,beta,"
+          << "coord_delta_l2,coord_delta_max,"
+          << "bill_mid_delta_l2,bill_spr_delta_l2,"
+          << "classification_pct,total_votes\n";
+    }
+
+    // Write period metrics header
+    {
+        std::ofstream f(config_.internalLogDir + "/internal_convergence_periods.csv");
+        f << "global_iter,phase,phase_seq,period,coord_delta_l2,coord_delta_max,num_legislators\n";
+    }
+
+    // Write data index mapping (one-time)
+    {
+        std::ofstream f(config_.internalLogDir + "/internal_data_index_map.csv");
+        f << "data_index,legislator_unique_id,congress\n";
+        int numLeg = static_cast<int>(legislatorCongress_.size());
+        for (int i = 0; i < numLeg; ++i)
+        {
+            f << i << "," << legislatorUniqueId_[i] << "," << legislatorCongress_[i] << "\n";
+        }
+    }
+
+    hasPrevSnapshot_ = false;
+    phaseSeqCounter_ = 0;
+}
+
+void DWNominate::logInternalSnapshot(int iteration, const std::string &phase)
+{
+    if (config_.internalLogDir.empty())
+        return;
+
+    int ns = config_.numDimensions;
+    double coordDeltaL2 = 0.0, coordDeltaMax = 0.0;
+    double billMidDeltaL2 = 0.0, billSprDeltaL2 = 0.0;
+
+    if (hasPrevSnapshot_)
+    {
+        // Compute coordinate deltas
+        Eigen::MatrixXd coordDiff = legislatorCoords_ - prevLegislatorCoords_;
+        coordDeltaL2 = coordDiff.norm();
+        coordDeltaMax = coordDiff.cwiseAbs().maxCoeff();
+
+        // Compute bill parameter deltas
+        Eigen::MatrixXd midDiff = rollCallMidpoints_ - prevRollCallMidpoints_;
+        billMidDeltaL2 = midDiff.norm();
+
+        Eigen::MatrixXd sprDiff = rollCallSpreads_ - prevRollCallSpreads_;
+        billSprDeltaL2 = sprDiff.norm();
+    }
+
+    double classPct = lastTotalVotes_ > 0
+                          ? (100.0 * lastClassificationAfter_ / lastTotalVotes_)
+                          : 0.0;
+
+    // Write metrics row
+    {
+        std::ofstream f(config_.internalLogDir + "/internal_convergence.csv", std::ios::app);
+        f << std::fixed << std::setprecision(6);
+        f << iteration << "," << phase << "," << phaseSeqCounter_ << ","
+          << currentLogLikelihood_ << ","
+          << weights_(1) << ","
+          << weights_(ns) << ","
+          << coordDeltaL2 << ","
+          << coordDeltaMax << ","
+          << billMidDeltaL2 << ","
+          << billSprDeltaL2 << ","
+          << classPct << ","
+          << lastTotalVotes_ << "\n";
+    }
+
+    // Write per-period coordinate deltas
+    if (hasPrevSnapshot_)
+    {
+        std::ofstream f(config_.internalLogDir + "/internal_convergence_periods.csv", std::ios::app);
+        f << std::fixed << std::setprecision(6);
+
+        for (const CongressInfo &congress : congressInfo_)
+        {
+            if (congress.index < config_.firstCongress ||
+                congress.index > config_.lastCongress)
+                continue;
+
+            int offset = congress.legislatorOffset;
+            int numLeg = congress.numLegislators;
+            int period = congress.index - config_.firstCongress + 1; // 1-based
+
+            double periodDeltaL2 = 0.0;
+            double periodDeltaMax = 0.0;
+
+            for (int i = 0; i < numLeg; ++i)
+            {
+                int idx = offset + i;
+                if (idx >= legislatorCoords_.rows())
+                    break;
+                for (int k = 0; k < ns; ++k)
+                {
+                    double d = legislatorCoords_(idx, k) - prevLegislatorCoords_(idx, k);
+                    periodDeltaL2 += d * d;
+                    double ad = std::abs(d);
+                    if (ad > periodDeltaMax)
+                        periodDeltaMax = ad;
+                }
+            }
+            periodDeltaL2 = std::sqrt(periodDeltaL2);
+
+            f << iteration << "," << phase << "," << phaseSeqCounter_ << ","
+              << period << "," << periodDeltaL2 << "," << periodDeltaMax << ","
+              << numLeg << "\n";
+        }
+    }
+
+    // Save current state as previous
+    prevLegislatorCoords_ = legislatorCoords_;
+    prevRollCallMidpoints_ = rollCallMidpoints_;
+    prevRollCallSpreads_ = rollCallSpreads_;
+    hasPrevSnapshot_ = true;
+    phaseSeqCounter_++;
 }

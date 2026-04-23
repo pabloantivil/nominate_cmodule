@@ -56,7 +56,14 @@ struct CLIConfig
     double w2 = 0.3463;
     bool verbose = false;
     bool showHelp = false;
-    bool exportCorrected = true; // Exportar con corrección de polaridad
+    bool exportCorrected = true;     // Exportar con corrección de polaridad
+    std::string internalLogDir = ""; // Internal convergence logging directory
+    // Convergencia automática
+    bool autoConverge = false; // Activar modo auto-convergencia
+    double tolerance = 0.025;  // RMS(Dx) umbral normalizado (desplazamiento promedio por coordenada)
+    int minIterations = 3;     // Iteraciones mínimas en modo auto
+    int maxIterations = 50;    // Cap de seguridad en modo auto
+    int stabilityWindow = 3;   // Iters consecutivas bajo tol para parar
 };
 
 // Parsing de argumentos CLI
@@ -79,10 +86,19 @@ void printHelp(const char *programName)
     std::cout << "  --w2=<value>           Peso dimensión 2 inicial (default: 0.3463)\n";
     std::cout << "  --verbose              Mostrar progreso detallado\n";
     std::cout << "  --no-corrected         No exportar archivos con polaridad corregida\n";
+    std::cout << "  --internal-log-dir=<p> Directorio para log de convergencia interna\n";
+    std::cout << "\nConvergencia automatica:\n";
+    std::cout << "  --auto-converge        Activar parada automatica por convergencia\n";
+    std::cout << "  --tolerance=<val>      Umbral RMS(Dx) normalizado (default: 0.025)\n";
+    std::cout << "                         Desplazamiento promedio por coordenada por iter.\n";
+    std::cout << "                         Independiente del numero de legisladores/dims.\n";
+    std::cout << "  --min-iterations=<n>   Iteraciones minimas antes de evaluar parada (default: 3)\n";
+    std::cout << "  --max-iterations=<n>   Cap de seguridad de iteraciones en modo auto (default: 50)\n";
+    std::cout << "  --stability-window=<n> Iters consecutivas bajo tolerancia para parar (default: 3)\n";
     std::cout << "  --help                 Mostrar esta ayuda\n\n";
     std::cout << "Ejemplos:\n";
     std::cout << "  " << programName << " --model=1 --iterations=10 --verbose\n";
-    std::cout << "  " << programName << " --input-dir=datos --periods=5\n";
+    std::cout << "  " << programName << " --auto-converge --tolerance=0.025 --max-iterations=50\n";
     std::cout << "  " << programName << " --model=0 --iterations=4\n";
 }
 
@@ -154,6 +170,30 @@ CLIConfig parseArguments(int argc, char *argv[])
         else if (arg.find("--w2=") == 0)
         {
             config.w2 = std::stod(getArgValue(arg, "--w2="));
+        }
+        else if (arg.find("--internal-log-dir=") == 0)
+        {
+            config.internalLogDir = getArgValue(arg, "--internal-log-dir=");
+        }
+        else if (arg == "--auto-converge")
+        {
+            config.autoConverge = true;
+        }
+        else if (arg.find("--tolerance=") == 0)
+        {
+            config.tolerance = std::stod(getArgValue(arg, "--tolerance="));
+        }
+        else if (arg.find("--min-iterations=") == 0)
+        {
+            config.minIterations = std::stoi(getArgValue(arg, "--min-iterations="));
+        }
+        else if (arg.find("--max-iterations=") == 0)
+        {
+            config.maxIterations = std::stoi(getArgValue(arg, "--max-iterations="));
+        }
+        else if (arg.find("--stability-window=") == 0)
+        {
+            config.stabilityWindow = std::stoi(getArgValue(arg, "--stability-window="));
         }
         else
         {
@@ -452,6 +492,12 @@ int main(int argc, char *argv[])
     dwConfig.fixGlobalParams = false;
     dwConfig.fixRollCalls = false;
     dwConfig.fixLegislators = false;
+    dwConfig.internalLogDir = config.internalLogDir;
+    dwConfig.autoConverge = config.autoConverge;
+    dwConfig.convergenceTol = config.tolerance;
+    dwConfig.minIterations = config.minIterations;
+    dwConfig.maxIterations = config.maxIterations;
+    dwConfig.stabilityWindow = config.stabilityWindow;
 
     // Ejecutar algoritmo
     std::cout << "Ejecutando DW-NOMINATE...\n";
@@ -486,7 +532,20 @@ int main(int argc, char *argv[])
     double classPctMain = result.totalValidVotes > 0 ? (100.0 * result.classificationAfter / result.totalValidVotes) : 0.0;
     std::cout << "\nResultados:\n";
     std::cout << "  Log-likelihood: " << std::fixed << std::setprecision(4) << result.finalLogLikelihood << "\n";
-    std::cout << "  Iteraciones:    " << result.totalIterations << "\n";
+    std::cout << "  Iteraciones:    " << result.totalIterations;
+    if (config.autoConverge)
+    {
+        if (result.convergedByTolerance)
+            std::cout << " (convergido automaticamente)";
+        else
+            std::cout << " (limite maximo alcanzado, sin convergencia)";
+    }
+    std::cout << "\n";
+    if (config.autoConverge && result.finalCoordDelta >= 0.0)
+    {
+        std::cout << "  RMS(Dx) final:  " << std::scientific << std::setprecision(6)
+                  << result.finalCoordDelta << std::defaultfloat << "\n";
+    }
     std::cout << "  Clasificacion:  " << result.classificationAfter << "/" << result.totalValidVotes
               << " (" << std::setprecision(2) << classPctMain << "%)\n";
     std::cout << "  W1=" << std::setprecision(4) << result.weights(0)

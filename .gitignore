@@ -20,3 +20,7 @@ Makefile
 /tests
 *.log
 *.ps1
+/convergence_test
+/plots_log
+/tools
+/output_internal_log
